@@ -1,0 +1,1841 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Doctor Roster Maker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#f4f6f8; --ink:#1f2a37; --muted:#64748b; --line:#dce3ea;
+    --teal:#0f766e; --teal-d:#0b5a54; --card:#ffffff;
+    --err:#dc2626; --err-bg:#fee2e2; --warn:#b45309; --warn-bg:#fef3c7;
+    --ok:#15803d; --ok-bg:#dcfce7; --closed:#eceff2;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);color:var(--ink);font-size:14px;line-height:1.45;}
+  button{font-family:inherit;cursor:pointer;border:none;border-radius:7px;font-size:13px;}
+  header{background:var(--teal);color:#fff;padding:12px 18px;display:flex;
+    align-items:center;gap:16px;flex-wrap:wrap;}
+  header h1{font-size:18px;font-weight:700;letter-spacing:.2px;}
+  header .sub{font-size:12px;opacity:.85;}
+  .spacer{flex:1;}
+  .wk{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.14);
+    padding:5px 8px;border-radius:9px;}
+  .wk button{background:rgba(255,255,255,.2);color:#fff;width:30px;height:30px;font-size:16px;font-weight:700;}
+  .wk button:hover{background:rgba(255,255,255,.34);}
+  .wk input{border:none;border-radius:6px;padding:5px 7px;font-size:13px;}
+  .wk .lbl{font-weight:600;font-size:13px;min-width:150px;text-align:center;}
+  .hbtn{background:#fff;color:var(--teal-d);font-weight:600;padding:8px 13px;}
+  .hbtn:hover{background:#e9fffb;}
+  .hbtn.ghost{background:rgba(255,255,255,.16);color:#fff;}
+  .hbtn.ghost:hover{background:rgba(255,255,255,.3);}
+  #saveNote{font-size:11px;opacity:.8;}
+  nav{background:#fff;border-bottom:1px solid var(--line);padding:0 14px;display:flex;gap:2px;}
+  nav button{background:none;padding:12px 16px;font-size:13.5px;font-weight:600;color:var(--muted);
+    border-bottom:3px solid transparent;border-radius:0;}
+  nav button.active{color:var(--teal-d);border-bottom-color:var(--teal);}
+  nav button:hover{color:var(--ink);}
+  main{padding:16px;max-width:1500px;margin:0 auto;}
+  .tab{display:none;}
+  .tab.active{display:block;}
+  .tip{background:#e7f6f4;border:1px solid #bfe6e1;color:#0b5a54;padding:10px 14px;
+    border-radius:9px;font-size:12.5px;margin-bottom:14px;display:flex;gap:10px;align-items:flex-start;}
+  .tip b{font-weight:700;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:11px;
+    padding:16px;margin-bottom:16px;}
+  .card h2{font-size:15px;margin-bottom:4px;}
+  .card .desc{font-size:12px;color:var(--muted);margin-bottom:12px;}
+  .gridwrap{overflow:auto;border:1px solid var(--line);border-radius:11px;background:#fff;max-height:74vh;}
+  table.roster{border-collapse:collapse;width:100%;font-size:12.5px;}
+  table.roster th,table.roster td{border:1px solid var(--line);padding:0;}
+  table.roster thead th{background:var(--teal);color:#fff;position:sticky;top:0;z-index:5;
+    padding:6px 8px;font-weight:600;text-align:center;}
+  table.roster thead th .dt{display:block;font-size:10.5px;opacity:.85;font-weight:500;}
+  table.roster th.fac,table.roster th.shf{position:sticky;z-index:6;}
+  th.fac,td.fac{left:0;min-width:140px;}
+  th.shf,td.shf{left:140px;min-width:78px;}
+  td.fac,td.shf{background:#f1f5f8;position:sticky;z-index:3;font-weight:600;}
+  td.fac{font-size:11.5px;}
+  td.shf{font-size:11px;color:var(--muted);text-align:center;}
+  tr.facfirst td.fac,tr.facfirst td.shf,tr.facfirst td.cell{border-top:2px solid #b9c6d1;}
+  td.cell{min-width:100px;height:26px;text-align:center;cursor:pointer;position:relative;
+    padding:2px 3px;}
+  td.cell:hover{outline:2px solid var(--teal);outline-offset:-2px;}
+  td.cell .who{display:block;border-radius:5px;padding:3px 4px;font-weight:600;font-size:11px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  td.cell.empty{color:#cbd5e1;font-size:14px;}
+  td.cell.empty:hover{color:var(--teal);}
+  td.closed{background:repeating-linear-gradient(45deg,#eceff2,#eceff2 6px,#e4e8ec 6px,#e4e8ec 12px);
+    cursor:pointer;color:#aab4bd;font-size:10px;text-align:center;}
+  td.closed:hover{outline:2px solid var(--teal);outline-offset:-2px;}
+  td.phcell{background:repeating-linear-gradient(45deg,#fef3c7,#fef3c7 6px,#fbe6a8 6px,#fbe6a8 12px);
+    cursor:pointer;color:#92660a;font-size:10px;font-weight:800;text-align:center;}
+  td.phcell:hover{outline:2px solid var(--teal);outline-offset:-2px;}
+  td.cell.err{outline:2px solid var(--err);outline-offset:-2px;background:var(--err-bg);}
+  td.cell.warn{outline:2px solid var(--warn);outline-offset:-2px;}
+  td.cell .flag{position:absolute;top:1px;right:2px;font-size:10px;font-weight:800;}
+  td.cell.err .flag{color:var(--err);}
+  td.cell.warn .flag{color:var(--warn);}
+  #expRoot{display:inline-block;background:#fff;}
+  #expRoot table.roster td.cell{height:21px;min-width:92px;padding:1px 2px;}
+  #expRoot table.roster td.cell .who{padding:2px 4px;font-size:11px;border-radius:3px;}
+  #expRoot table.roster th,#expRoot table.roster td{font-size:10.5px;}
+  #expRoot table.roster td.fac{font-size:10.5px;}
+  #expRoot table.roster td.shf{font-size:9.5px;}
+  #expRoot table.roster thead th{padding:3px 5px;}
+  #expRoot table.roster thead th .dt{font-size:9px;font-weight:600;}
+  #expRoot table.roster td.cell.empty{background:#fefce8;}
+  .vsum{margin-top:14px;}
+  .vrow{display:flex;gap:8px;align-items:flex-start;padding:7px 10px;border-radius:7px;
+    font-size:12.5px;margin-bottom:5px;}
+  .vrow.err{background:var(--err-bg);color:#7f1d1d;}
+  .vrow.warn{background:var(--warn-bg);color:#78350f;}
+  .vrow .badge{font-weight:800;font-size:11px;}
+  .allgood{background:var(--ok-bg);color:#14532d;padding:10px 14px;border-radius:8px;font-weight:600;}
+  .legend{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px;}
+  .lchip{display:flex;align-items:center;gap:5px;font-size:11px;background:#f1f5f8;
+    border:1px solid var(--line);border-radius:20px;padding:3px 9px;}
+  .lchip .sw{width:13px;height:13px;border-radius:4px;border:1px solid rgba(0,0,0,.12);}
+  .modal-bg{position:fixed;inset:0;background:rgba(15,30,40,.5);display:none;
+    align-items:center;justify-content:center;z-index:50;padding:20px;}
+  .modal-bg.show{display:flex;}
+  .modal{background:#fff;border-radius:14px;width:520px;max-width:100%;max-height:88vh;
+    display:flex;flex-direction:column;overflow:hidden;}
+  .modal .mh{background:var(--teal);color:#fff;padding:14px 18px;}
+  .modal .mh .t{font-size:15px;font-weight:700;}
+  .modal .mh .s{font-size:12px;opacity:.9;}
+  .modal .mbody{padding:14px 18px;overflow:auto;}
+  .srch{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-size:13px;margin-bottom:6px;}
+  .grp{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+    color:var(--muted);margin:12px 0 5px;}
+  .sg{display:flex;align-items:center;gap:9px;padding:8px 9px;border:1px solid var(--line);
+    border-radius:9px;margin-bottom:6px;cursor:pointer;border-left-width:5px;}
+  .sg:hover{background:#f4faf9;}
+  .sg .nm{font-weight:700;font-size:13px;}
+  .sg .meta{font-size:11px;color:var(--muted);}
+  .sg .rsn{font-size:11px;margin-top:1px;}
+  .sg .ic{margin-left:auto;font-size:15px;font-weight:800;}
+  .sg.ok{border-left-color:var(--ok);} .sg.ok .ic{color:var(--ok);}
+  .sg.warn{border-left-color:var(--warn);} .sg.warn .ic{color:var(--warn);}
+  .sg.err{border-left-color:var(--err);} .sg.err .ic{color:var(--err);}
+  .tag{display:inline-block;font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:10px;
+    background:#e2e8f0;color:#475569;margin-left:4px;vertical-align:1px;}
+  .tag.ohd{background:#dbeafe;color:#1e40af;}
+  .mfoot{padding:12px 18px;border-top:1px solid var(--line);display:flex;gap:8px;}
+  .btn{padding:9px 14px;border-radius:8px;font-weight:600;font-size:13px;}
+  .btn.primary{background:var(--teal);color:#fff;} .btn.primary:hover{background:var(--teal-d);}
+  .btn.grey{background:#eef2f5;color:var(--ink);} .btn.grey:hover{background:#e2e8ee;}
+  .btn.danger{background:var(--err-bg);color:var(--err);} .btn.danger:hover{background:#fbcaca;}
+  table.data{border-collapse:collapse;width:100%;font-size:13px;}
+  table.data th,table.data td{border:1px solid var(--line);padding:7px 9px;text-align:left;}
+  table.data th{background:#f1f5f8;font-size:11.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);}
+  table.data input,table.data select{border:1px solid var(--line);border-radius:6px;padding:5px 6px;font-size:12.5px;font-family:inherit;}
+  td.hr-warn{background:var(--warn-bg);font-weight:700;}
+  td.hr-err{background:var(--err-bg);font-weight:700;color:#7f1d1d;}
+  .field{display:flex;flex-direction:column;gap:3px;}
+  .field label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;}
+  .field input,.field select{border:1px solid var(--line);border-radius:7px;padding:8px 9px;font-size:13px;font-family:inherit;}
+  .formgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:11px;align-items:end;}
+  .bk{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--line);
+    border-radius:9px;margin-bottom:7px;}
+  .bk .bd{flex:1;font-size:12.5px;}
+  .bk .bd b{font-size:13px;}
+  .bk.clash{border-color:var(--err);background:var(--err-bg);}
+  .pill{font-size:10.5px;background:#e2e8f0;border-radius:10px;padding:1px 8px;font-weight:600;}
+  .help h3{font-size:14px;margin:16px 0 5px;color:var(--teal-d);}
+  .help p,.help li{font-size:13px;margin-bottom:5px;}
+  .help ul{padding-left:20px;}
+  .small{font-size:11px;color:var(--muted);}
+  @media(max-width:640px){th.shf,td.shf{display:none;}th.fac,td.fac{min-width:96px;}}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Doctor Roster Maker</h1>
+    <div class="sub">Penang medical staff scheduling</div>
+  </div>
+  <div class="wk">
+    <button id="wkPrev" title="Previous week">&#8249;</button>
+    <div><div class="lbl" id="wkLabel">&mdash;</div></div>
+    <button id="wkNext" title="Next week">&#8250;</button>
+    <input type="date" id="wkPick" title="Jump to a week">
+  </div>
+  <div class="spacer"></div>
+  <span id="saveNote">Saved</span>
+  <span id="syncNote" style="font-size:11px;opacity:.9;margin-left:2px">Local only</span>
+  <button class="hbtn" id="btnPDF">Export PDF</button>
+  <button class="hbtn" id="btnPNG">Export PNG</button>
+  <button class="hbtn ghost" id="btnData">Backup &#9662;</button>
+</header>
+<nav>
+  <button class="tabbtn active" data-tab="roster">Weekly Roster</button>
+  <button class="tabbtn" data-tab="bookings">Special Bookings</button>
+  <button class="tabbtn" data-tab="doctors">Doctors</button>
+  <button class="tabbtn" data-tab="clinics">Clinics</button>
+  <button class="tabbtn" data-tab="leave">Leave</button>
+  <button class="tabbtn" data-tab="holidays">Holidays</button>
+  <button class="tabbtn" data-tab="hours">Hours</button>
+  <button class="tabbtn" data-tab="help">Help</button>
+</nav>
+<main>
+  <div class="tab active" id="tab-roster">
+    <div class="tip"><b>Tip</b><span>Click any cell to pick a doctor &mdash; the tool ranks who fits best.
+      <b style="color:#dc2626">Red</b> = clash to fix, <b style="color:#b45309">amber</b> = check this.
+      Striped cells are closed &mdash; click one to open it. You can close any open slot from the same popup.</span></div>
+    <div id="bookingStrip"></div>
+    <div id="leaveStrip"></div>
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
+      <button class="btn grey" id="btnCopyWeek">Copy last week into this week</button>
+      <button class="btn grey" id="btnClearWeek">Clear this week</button>
+      <span class="small" id="weekState"></span>
+    </div>
+    <div class="gridwrap"><table class="roster" id="rosterTable"></table></div>
+    <div class="legend" id="legend"></div>
+    <div class="vsum" id="vsum"></div>
+  </div>
+  <div class="tab" id="tab-bookings">
+    <div class="card">
+      <h2>Add a special booking</h2>
+      <div class="desc">Use this when a doctor has an outside commitment that is not on the roster
+        (a one-off visit, a meeting, leave). The tool will then keep that doctor free at that time
+        and warn you if the roster clashes with it.</div>
+      <div class="formgrid">
+        <div class="field"><label>Doctor</label><select id="bkDoc"></select></div>
+        <div class="field"><label>Going to (place)</label><select id="bkPlace"></select></div>
+        <div class="field"><label>Area</label><select id="bkLoc"></select></div>
+        <div class="field"><label>Date</label><input type="date" id="bkDate"></div>
+        <div class="field"><label>From</label><input type="time" id="bkStart" value="10:00"></div>
+        <div class="field"><label>To</label><input type="time" id="bkEnd" value="12:00"></div>
+        <div class="field"><label>Note (optional)</label><input type="text" id="bkNote" placeholder="e.g. annual visit"></div>
+        <button class="btn primary" id="bkAdd">Add booking</button>
+      </div>
+      <div class="small" style="margin-top:8px">New place not in the list?
+        <a href="#" id="bkNewPlace" style="color:#0f766e">Add a new place</a> &mdash; it will be saved for next time.</div>
+    </div>
+    <div class="card">
+      <h2>All special bookings</h2>
+      <div class="desc">Bookings show on the roster for the week they fall in.</div>
+      <div id="bkList"></div>
+    </div>
+  </div>
+  <div class="tab" id="tab-doctors">
+    <div class="card">
+      <h2>Doctors</h2>
+      <div class="desc">Add, edit or remove doctors. Permanent doctors each get their own colour on the roster.
+        OHD = certified for LAM Research, FS (OH) and Penta sites.</div>
+      <div class="formgrid" style="margin-bottom:14px">
+        <div class="field"><label>Name</label><input type="text" id="dcName"></div>
+        <div class="field"><label>Status</label><select id="dcStatus"><option>Permanent</option><option>Locum</option></select></div>
+        <div class="field"><label>Pool</label><select id="dcPool"><option>GP</option><option>Industrial</option></select></div>
+        <div class="field"><label>OHD certified</label><select id="dcOhd"><option>No</option><option>Yes</option></select></div>
+        <button class="btn primary" id="dcAdd">Add doctor</button>
+      </div>
+      <div style="margin:4px 0 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><input type="text" id="docSearch" placeholder="Search doctors by name…" style="flex:1;min-width:220px;max-width:360px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px"><span id="docCount" style="color:#64748b;font-size:13px"></span></div>
+      <table class="data" id="docTable"></table>
+    </div>
+  </div>
+  <div class="tab" id="tab-clinics">
+    <div class="card">
+      <h2>Add a clinic</h2>
+      <div class="desc">Add a new clinic or site to the roster. Set its name, area, how many
+        shift slots it has, and the timing of each slot. A new clinic starts open every day &mdash;
+        close any days you don't need straight from the roster grid.</div>
+      <div class="formgrid">
+        <div class="field"><label>Clinic name</label><input type="text" id="clName" placeholder="e.g. Penta BK"></div>
+        <div class="field"><label>Area</label><select id="clLoc"></select></div>
+        <div class="field"><label>Pool</label><select id="clPool"><option>GP</option><option>Industrial</option></select></div>
+        <div class="field"><label>Number of slots</label><select id="clCount"><option>1</option><option selected>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></div>
+      </div>
+      <div id="clSlots" style="margin-top:12px"></div>
+      <button class="btn primary" id="clAdd" style="margin-top:6px">Add clinic</button>
+    </div>
+    <div class="card">
+      <h2>All clinics</h2>
+      <div class="desc">Every clinic in the roster. Use <b>Edit</b> to rename a clinic or change
+        its area, pool or shift times, or <b>Remove</b> to delete it. Removing a clinic also
+        clears its rows from every week.</div>
+      <div id="clList"></div>
+    </div>
+  </div>
+  <div class="tab" id="tab-leave">
+    <div class="card">
+      <h2>Log doctor leave</h2>
+      <div class="desc">When you have reviewed and approved a leave application, record it here.
+        Only permanent doctors can be logged for leave. The roster will then flag that doctor
+        in red if they are placed on a day they are away, and the assign popup marks them as
+        unavailable.</div>
+      <div class="formgrid">
+        <div class="field"><label>Doctor</label><select id="lvDoc"></select></div>
+        <div class="field"><label>First day off</label><input type="date" id="lvFrom"></div>
+        <div class="field"><label>Last day off</label><input type="date" id="lvTo"></div>
+        <div class="field"><label>Note (optional)</label><input type="text" id="lvNote" placeholder="e.g. annual leave"></div>
+        <button class="btn primary" id="lvAdd">Add leave</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>All leave</h2>
+      <div class="desc">Leave shows on the roster for the weeks it covers.</div>
+      <div id="lvList"></div>
+    </div>
+  </div>
+  <div class="tab" id="tab-holidays">
+    <div class="card">
+      <h2>Set a public holiday</h2>
+      <div class="desc">Add a public holiday given by the state or a company. On that day the
+        chosen clinics show <b>PH</b> in the roster instead of an empty slot. If a company still
+        needs cover, just click the PH cell and assign a doctor as normal.</div>
+      <div class="formgrid">
+        <div class="field"><label>Date</label><input type="date" id="hdDate"></div>
+        <div class="field"><label>Holiday name</label><input type="text" id="hdName" placeholder="e.g. Wesak Day"></div>
+        <button class="btn primary" id="hdAdd">Add holiday</button>
+      </div>
+      <div style="margin-top:14px">
+        <div class="grp">Which clinics are closed?</div>
+        <div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px">
+          <button class="btn grey" id="hdAll" type="button">Tick all</button>
+          <button class="btn grey" id="hdNone" type="button">Clear all</button>
+          <button class="btn grey" data-hdreg="Penang Island" type="button">+ Penang Island</button>
+          <button class="btn grey" data-hdreg="Prai" type="button">+ Prai</button>
+          <button class="btn grey" data-hdreg="Batu Kawan" type="button">+ Batu Kawan</button>
+          <button class="btn grey" data-hdreg="Kulim" type="button">+ Kulim</button>
+        </div>
+        <div id="hdClinics"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>All public holidays</h2>
+      <div id="hdList"></div>
+    </div>
+  </div>
+  <div class="tab" id="tab-hours">
+    <div class="card">
+      <h2>Weekly hours &mdash; permanent doctors</h2>
+      <div class="desc">Standard week is 45 hours.
+        <span style="background:var(--warn-bg);padding:1px 6px;border-radius:4px">Amber</span> = 40&ndash;45h,
+        <span style="background:var(--err-bg);padding:1px 6px;border-radius:4px">red</span> = over 45h.</div>
+      <table class="data" id="hoursTable"></table>
+    </div>
+  </div>
+  <div class="tab help" id="tab-help">
+    <div class="card">
+      <h2>How to use this tool</h2>
+      <h3>1. Pick the week</h3>
+      <p>Use the &#8249; &#8250; arrows or the date box at the top to choose the week. Each week is saved
+        on its own. A brand-new week starts empty &mdash; you can press <b>Copy last week</b> to carry the
+        previous week forward as a starting point.</p>
+      <h3>2. Fill the roster</h3>
+      <p>On the <b>Weekly Roster</b> tab, click any cell. A list of doctors appears, sorted best-fit first:</p>
+      <ul>
+        <li><b>Recommended</b> &mdash; fits the site, no clashes.</li>
+        <li><b>Possible</b> &mdash; works, but check the note.</li>
+        <li><b>Has conflicts</b> &mdash; would double-book the doctor or break a hard rule.</li>
+      </ul>
+      <h3>3. Open or close a slot</h3>
+      <p>Striped grey cells are closed. Most sites open and close on a sensible default schedule,
+        but you can change any slot for the week you are on: click a closed cell and press
+        <b>Open this slot</b>, or click an open cell and press <b>Close this slot</b>.
+        Closing a slot also clears any doctor in it. These changes only affect the current week.</p>
+      <h3>4. Watch the warnings</h3>
+      <p>Red and amber cells are flagged automatically. The list under the grid explains every one.
+        The tool checks double-bookings, travel time between areas, OHD-only sites, locum-only sites,
+        and the 45-hour limit.</p>
+      <h3>5. Special bookings</h3>
+      <p>If a doctor has an outside commitment (not a roster site), add it on the <b>Special Bookings</b>
+        tab. The tool will then treat that doctor as busy at that time and warn you of any clash.</p>
+      <h3>6. Export</h3>
+      <p>Press <b>Export PDF</b> or <b>Export PNG</b> at the top to save the finished roster as a
+        compact, phone-friendly image &mdash; no need to screenshot.</p>
+      <h3>7. Add, edit or remove a clinic</h3>
+      <p>On the <b>Clinics</b> tab you can add a new clinic or site: give it a name, an area,
+        how many shift slots it has, and the timing of each slot. Every clinic &mdash; built-in
+        or one you added &mdash; is listed below with an <b>Edit</b> and a <b>Remove</b> button.
+        Editing lets you rename the clinic, change its area or pool, and adjust, add or remove
+        shift times; the roster keeps up automatically. Removing a clinic clears its rows from
+        every week.</p>
+      <h3>8. Doctor leave</h3>
+      <p>Once you have reviewed and approved a leave application, record it on the <b>Leave</b>
+        tab &mdash; pick the permanent doctor and the first and last day off. The roster then marks that
+        doctor in red if they are placed on a day they are away, and the assign popup shows
+        them as unavailable. Leave for the current week is listed above the grid.</p>
+      <h3>9. Public holidays</h3>
+      <p>On the <b>Holidays</b> tab, set a public holiday given by the state or a company:
+        choose the date, give it a name, and tick which clinics are closed (the area buttons
+        tick a whole region at once). Those clinics then show <b>PH</b> in the roster for that
+        day. If a company still needs cover on the holiday, click the PH cell and assign a
+        doctor as usual.</p>
+      <h3>10. Backup</h3>
+      <p>Your work saves automatically in this browser. Use <b>Backup</b> &rarr; <b>Download backup file</b>
+        every so often, or to move your data to another computer.</p>
+    </div>
+  </div>
+</main>
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <div class="mh"><div class="t" id="mTitle">Assign doctor</div><div class="s" id="mSub"></div></div>
+    <div class="mbody">
+      <div id="mBanner"></div>
+      <div style="display:flex;gap:6px;margin:0 0 9px">
+        <input id="mRemark" maxlength="30" placeholder='Remark (shows next to the name), e.g. &quot;confirmed&quot;' style="flex:1;padding:9px 11px;border:1px solid #cbd5e1;border-radius:9px;font-size:13.5px">
+        <button class="btn grey" id="mSaveRemark" style="white-space:nowrap">Save note</button>
+      </div>
+      <input class="srch" id="mSearch" placeholder="Search doctor name...">
+      <div id="mList"></div>
+    </div>
+    <div class="mfoot">
+      <button class="btn danger" id="mClear">Clear cell</button>
+      <button class="btn grey" id="mToggle">Close this slot</button>
+      <div style="flex:1"></div>
+      <button class="btn grey" id="mCancel">Close</button>
+    </div>
+  </div>
+</div>
+<div class="modal-bg" id="dataBg">
+  <div class="modal" style="width:420px">
+    <div class="mh"><div class="t">Backup &amp; restore</div></div>
+    <div class="mbody">
+      <p style="font-size:13px;margin-bottom:12px">Your roster saves automatically in this browser.
+        Download a backup file to keep it safe or move it to another device.</p>
+      <button class="btn primary" id="expJson" style="width:100%;margin-bottom:8px">Download backup file</button>
+      <button class="btn grey" id="impJson" style="width:100%">Restore from a backup file</button>
+      <input type="file" id="impFile" accept=".json" style="display:none">
+    </div>
+    <div class="mfoot"><div style="flex:1"></div>
+      <button class="btn grey" id="dataCancel">Close</button></div>
+  </div>
+</div>
+<div class="modal-bg" id="clinicBg">
+  <div class="modal" style="width:660px">
+    <div class="mh"><div class="t" id="ceTitle">Edit clinic</div>
+      <div class="s">Rename the clinic or change its area, pool and shift times. Roster entries follow the changes.</div></div>
+    <div class="mbody">
+      <div class="formgrid" style="margin-bottom:14px">
+        <div class="field"><label>Clinic name</label><input type="text" id="ceName"></div>
+        <div class="field"><label>Area</label><select id="ceLoc"></select></div>
+        <div class="field"><label>Pool</label><select id="cePool"><option>GP</option><option>Industrial</option></select></div>
+      </div>
+      <div class="grp">Shifts</div>
+      <div id="ceSlots"></div>
+      <button class="btn grey" id="ceAddSlot">+ Add a shift</button>
+    </div>
+    <div class="mfoot">
+      <button class="btn primary" id="ceSave">Save changes</button>
+      <div style="flex:1"></div>
+      <button class="btn grey" id="ceCancel">Cancel</button>
+    </div>
+  </div>
+</div>
+<script>
+const DATA = {"doctors":[{"name":"Maxie","status":"Locum","pool":"GP","ohd":false},{"name":"Yeap SS","status":"Permanent","pool":"GP","ohd":false,"color":"#ffaa42"},{"name":"Cheah Tian Phern","status":"Locum","pool":"GP","ohd":false},{"name":"Amirul Izat","status":"Permanent","pool":"Industrial","ohd":true,"color":"#ff85dc"},{"name":"Shazrin","status":"Locum","pool":"GP","ohd":false},{"name":"Lim Ern Yang","status":"Permanent","pool":"Industrial","ohd":false,"color":"#ca8aff"},{"name":"Ong Jia wen","status":"Locum","pool":"GP","ohd":false},{"name":"Chng","status":"Permanent","pool":"Industrial","ohd":false,"color":"#4268ff"},{"name":"Dr. Kirath","status":"Permanent","pool":"Industrial","ohd":true,"color":"#52ffe8"},{"name":"Hong","status":"Locum","pool":"GP","ohd":false},{"name":"Mahaviviandevi","status":"Locum","pool":"GP","ohd":false},{"name":"Chng CH","status":"Permanent","pool":"GP","ohd":false,"color":"#f5dafb"},{"name":"Tan Jin Zhi","status":"Locum","pool":"Industrial","ohd":false},{"name":"Angeline Ng","status":"Locum","pool":"GP","ohd":false},{"name":"Eoh","status":"Locum","pool":"GP","ohd":false},{"name":"Boon GG","status":"Locum","pool":"GP","ohd":false},{"name":"Ooi WY","status":"Permanent","pool":"Industrial","ohd":true,"color":"#f9c2da"},{"name":"Noreen","status":"Permanent","pool":"Industrial","ohd":true,"color":"#ff9d9d"},{"name":"Nurul farah","status":"Locum","pool":"GP","ohd":false},{"name":"Oh Jaan Twu","status":"Locum","pool":"GP","ohd":false},{"name":"Siti munirah","status":"Locum","pool":"GP","ohd":false},{"name":"Kaamini","status":"Permanent","pool":"Industrial","ohd":false,"color":"#70f769"},{"name":"Joanne","status":"Locum","pool":"Industrial","ohd":false},{"name":"Ong","status":"Permanent","pool":"Industrial","ohd":true,"color":"#f2d29a"},{"name":"Gan","status":"Locum","pool":"GP","ohd":false},{"name":"Ngan Chin Han","status":"Locum","pool":"GP","ohd":false},{"name":"Dinesh","status":"Locum","pool":"GP","ohd":false},{"name":"Logan","status":"Permanent","pool":"Industrial","ohd":true,"color":"#dfd6f4"},{"name":"Wong","status":"Permanent","pool":"GP","ohd":false,"color":"#f2dcfe"},{"name":"Raju","status":"Locum","pool":"GP","ohd":false},{"name":"Aalinah","status":"Locum","pool":"Industrial","ohd":false},{"name":"Ooi Li Pin","status":"Locum","pool":"Industrial","ohd":false},{"name":"Inparathi","status":"Locum","pool":"Industrial","ohd":false},{"name":"Farzana","status":"Locum","pool":"Industrial","ohd":false},{"name":"Lim","status":"Permanent","pool":"Industrial","ohd":true,"color":"#f0b9c8"},{"name":"Angeline Ooi","status":"Locum","pool":"Industrial","ohd":false},{"name":"Mangalaswari","status":"Locum","pool":"Industrial","ohd":false},{"name":"Seetha","status":"Locum","pool":"Industrial","ohd":false},{"name":"TanPG","status":"Locum","pool":"Industrial","ohd":false},{"name":"Eswaran","status":"Locum","pool":"Industrial","ohd":false},{"name":"Syafiq","status":"Permanent","pool":"Industrial","ohd":true,"color":"#c6edbf"},{"name":"Chiang Kar Mun","status":"Locum","pool":"Industrial","ohd":false},{"name":"Ajeetha","status":"Locum","pool":"Industrial","ohd":false},{"name":"Uma","status":"Locum","pool":"Industrial","ohd":false},{"name":"Hazriq","status":"Locum","pool":"Industrial","ohd":false},{"name":"Goh Yen Lin","status":"Locum","pool":"Industrial","ohd":false},{"name":"Leong MF","status":"Locum","pool":"Industrial","ohd":false},{"name":"Revathy","status":"Locum","pool":"Industrial","ohd":false},{"name":"Nur Afiqa","status":"Locum","pool":"Industrial","ohd":false},{"name":"Lingitha","status":"Locum","pool":"GP","ohd":false},{"name":"aldric","status":"Locum","pool":"GP","ohd":false},{"name":"Karthigesan","status":"Locum","pool":"GP","ohd":false},{"name":"Thuruven","status":"Locum","pool":"GP","ohd":false},{"name":"Ian","status":"Locum","pool":"GP","ohd":false},{"name":"Siyamni","status":"Locum","pool":"GP","ohd":false},{"name":"Ami farhana","status":"Locum","pool":"GP","ohd":false},{"name":"Ramvinder","status":"Locum","pool":"Industrial","ohd":false},{"name":"rubhenraj","status":"Locum","pool":"GP","ohd":false},{"name":"Lim Li Chyn","status":"Locum","pool":"Industrial","ohd":false},{"name":"Yap Ai ying","status":"Locum","pool":"GP","ohd":false},{"name":"Lam Han Min","status":"Locum","pool":"GP","ohd":false},{"name":"Christal","status":"Locum","pool":"GP","ohd":false},{"name":"Siva Sangkari","status":"Locum","pool":"GP","ohd":false},{"name":"Lim Hwei Sheng","status":"Locum","pool":"GP","ohd":false},{"name":"Soo","status":"Locum","pool":"Industrial","ohd":true},{"name":"Lee Miaw Kiang","status":"Locum","pool":"Industrial","ohd":false},{"name":"Wongwaipheng","status":"Locum","pool":"Industrial","ohd":false},{"name":"Daniel Kesavan","status":"Locum","pool":"Industrial","ohd":false},{"name":"Andre","status":"Locum","pool":"Industrial","ohd":false},{"name":"Hidayah","status":"Locum","pool":"Industrial","ohd":false},{"name":"June","status":"Locum","pool":"Industrial","ohd":false},{"name":"Tan Mun Ying","status":"Locum","pool":"Industrial","ohd":false},{"name":"Esther Chong","status":"Locum","pool":"Industrial","ohd":false},{"name":"Teoh Zher wei","status":"Locum","pool":"Industrial","ohd":false},{"name":"Nabilah","status":"Locum","pool":"Industrial","ohd":false},{"name":"Abdul Rahman","status":"Locum","pool":"Industrial","ohd":false},{"name":"Arthiie","status":"Locum","pool":"GP","ohd":false},{"name":"Ashley Ngooi","status":"Locum","pool":"Industrial","ohd":false},{"name":"Charmaine Yim","status":"Locum","pool":"Industrial","ohd":false},{"name":"Deivanai","status":"Locum","pool":"Industrial","ohd":false},{"name":"Karthi","status":"Locum","pool":"GP","ohd":false},{"name":"Kartiga","status":"Locum","pool":"GP","ohd":false},{"name":"Kesevan","status":"Locum","pool":"Industrial","ohd":false},{"name":"Lim Sze Wei","status":"Locum","pool":"Industrial","ohd":false},{"name":"Loshana","status":"Locum","pool":"GP","ohd":false},{"name":"Navin","status":"Locum","pool":"GP","ohd":false},{"name":"Omar","status":"Locum","pool":"Industrial","ohd":false},{"name":"Renuka","status":"Locum","pool":"Industrial","ohd":false},{"name":"Ros Azmira","status":"Locum","pool":"Industrial","ohd":false},{"name":"Thanesh","status":"Locum","pool":"GP","ohd":false},{"name":"Viriya","status":"Locum","pool":"GP","ohd":false},{"name":"Sush","status":"Locum","pool":"GP","ohd":false},{"name":"Yugamalar","status":"Locum","pool":"GP","ohd":false},{"name":"Bhaeravii","status":"Locum","pool":"GP","ohd":false},{"name":"Teo Jing Yi","status":"Locum","pool":"GP","ohd":false},{"name":"Yeap Ai Ying","status":"Locum","pool":"GP","ohd":false},{"name":"Nazirul","status":"Locum","pool":"GP","ohd":false},{"name":"Nithiyaa","status":"Locum","pool":"GP","ohd":false},{"name":"Thexeisha Yeap","status":"Locum","pool":"Industrial","ohd":false},{"name":"Lee Wei Le","status":"Locum","pool":"Industrial","ohd":false},{"name":"Sarass","status":"Locum","pool":"Industrial","ohd":false}],"slots":[{"id":"KSR|||AM","facility":"KSR","shift":"AM","start":"08:00","end":"13:00","hours":5,"location":"Penang Island","pool":"GP","allowedDays":[0,1,2,3,4,5,6],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"KSR|||PM","facility":"KSR","shift":"PM","start":"14:00","end":"18:00","hours":4,"location":"Penang Island","pool":"GP","allowedDays":[0,1,2,3,4,6],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"KSR|||Nite","facility":"KSR","shift":"Nite","start":"18:00","end":"22:00","hours":4,"location":"Penang Island","pool":"GP","allowedDays":[0,1,2,3,4,6],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"KSLS|||AM","facility":"KSLS","shift":"AM","start":"09:00","end":"13:00","hours":4,"location":"Penang Island","pool":"GP","allowedDays":[0,1,2,3,4,5,6],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"KSLS|||PM","facility":"KSLS","shift":"PM","start":"14:00","end":"18:00","hours":4,"location":"Penang Island","pool":"GP","allowedDays":[0,1,2,3,4,6],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"KSLS|||Nite","facility":"KSLS","shift":"Nite","start":"18:00","end":"22:00","hours":4,"location":"Penang Island","pool":"GP","allowedDays":[0,1,2,3,4,6],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"Pluxhealth Setia|||AM","facility":"Pluxhealth Setia","shift":"AM","start":"09:00","end":"13:00","hours":4,"location":"Penang Island","pool":"GP","allowedDays":[0,1,2,3,4,5,6],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"Pluxhealth Setia|||PM","facility":"Pluxhealth Setia","shift":"PM","start":"14:00","end":"18:00","hours":4,"location":"Penang Island","pool":"GP","allowedDays":[0,1,2,3,4,6],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"Pluxhealth Setia|||Nite","facility":"Pluxhealth Setia","shift":"Nite","start":"18:00","end":"22:00","hours":4,"location":"Penang Island","pool":"GP","allowedDays":[0,1,2,3,4,6],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"Pluxhealth Alora|||AM","facility":"Pluxhealth Alora","shift":"AM","start":"08:00","end":"13:00","hours":5,"location":"Penang Island","pool":"GP","allowedDays":[0,1,2,3,4,5,6],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"Pluxhealth Alora|||PM","facility":"Pluxhealth Alora","shift":"PM","start":"14:00","end":"17:00","hours":3,"location":"Penang Island","pool":"GP","allowedDays":[0,1,2,3,4,6],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"Pluxhealth Alora|||Evening","facility":"Pluxhealth Alora","shift":"Evening","start":"17:00","end":"21:00","hours":4,"location":"Penang Island","pool":"GP","allowedDays":[0,1,2,3,4,6],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"Pluxhealth Kulim|||AM","facility":"Pluxhealth Kulim","shift":"AM","start":"08:00","end":"13:00","hours":5,"location":"Kulim","pool":"GP","allowedDays":[0,1,2,3,4,5,6],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"Pluxhealth Kulim|||PM","facility":"Pluxhealth Kulim","shift":"PM","start":"14:00","end":"18:00","hours":4,"location":"Kulim","pool":"GP","allowedDays":[0,1,2,3,4,6],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"Pluxhealth Kulim|||Nite","facility":"Pluxhealth Kulim","shift":"Nite","start":"18:00","end":"22:00","hours":4,"location":"Kulim","pool":"GP","allowedDays":[0,1,2,3,4,6],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"Pluxhealth BK|||AM","facility":"Pluxhealth BK","shift":"AM","start":"09:00","end":"13:00","hours":4,"location":"Batu Kawan","pool":"GP","allowedDays":[0,1,2,3,4,5,6],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"Pluxhealth BK|||PM","facility":"Pluxhealth BK","shift":"PM","start":"14:00","end":"18:00","hours":4,"location":"Batu Kawan","pool":"GP","allowedDays":[0,1,2,3,4,6],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"Pluxhealth BK|||Nite","facility":"Pluxhealth BK","shift":"Nite","start":"18:00","end":"22:00","hours":4,"location":"Batu Kawan","pool":"GP","allowedDays":[0,1,2,3,4,6],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"Caring|||8-1pm","facility":"Caring","shift":"8-1pm","start":"08:00","end":"13:00","hours":5,"location":"Penang Island","pool":"GP","allowedDays":[0,1,2,3,4,5,6],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"Caring|||1-5pm","facility":"Caring","shift":"1-5pm","start":"13:00","end":"17:00","hours":4,"location":"Penang Island","pool":"GP","allowedDays":[0,1,2,3,4,6],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"Caring|||5-9pm","facility":"Caring","shift":"5-9pm","start":"17:00","end":"21:00","hours":4,"location":"Penang Island","pool":"GP","allowedDays":[0,1,2,3,4,6],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"First Solar KMT2|||9-1pm","facility":"First Solar KMT2","shift":"9-1pm","start":"09:00","end":"13:00","hours":4,"location":"Kulim","pool":"Industrial","allowedDays":[0,2,4],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"FS (OH) KMT2|||1-5pm","facility":"FS (OH) KMT2","shift":"1-5pm","start":"13:00","end":"17:00","hours":4,"location":"Kulim","pool":"Industrial","allowedDays":[1,3],"locumOnly":false,"ohdReq":true,"atns":false},{"id":"Sanmina|||9-11am","facility":"Sanmina","shift":"9-11am","start":"09:00","end":"11:00","hours":2,"location":"Penang Island","pool":"Industrial","allowedDays":[0,1,2,3,4],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"Sanmina (Prai)|||9-11am","facility":"Sanmina (Prai)","shift":"9-11am","start":"09:00","end":"11:00","hours":2,"location":"Prai","pool":"Industrial","allowedDays":[0,1,2,3,4],"locumOnly":false,"ohdReq":false,"atns":false,"custom":true},{"id":"Keysight|||9-1pm","facility":"Keysight","shift":"9-1pm","start":"09:00","end":"13:00","hours":4,"location":"Penang Island","pool":"Industrial","allowedDays":[0,1,2,3,4],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"Keysight|||2-6pm","facility":"Keysight","shift":"2-6pm","start":"14:00","end":"18:00","hours":4,"location":"Penang Island","pool":"Industrial","allowedDays":[0,1,2,3,4],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"Broadcom|||9-1pm","facility":"Broadcom","shift":"9-1pm","start":"09:00","end":"13:00","hours":4,"location":"Penang Island","pool":"Industrial","allowedDays":[0,2,4],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"Dell1|||9-12pm","facility":"Dell1","shift":"9-12pm","start":"09:00","end":"12:00","hours":3,"location":"Penang Island","pool":"Industrial","allowedDays":[3,4],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"Dell1|||2-5pm","facility":"Dell1","shift":"2-5pm","start":"14:00","end":"17:00","hours":3,"location":"Penang Island","pool":"Industrial","allowedDays":[1],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"Dell2|||8.30-10.30am","facility":"Dell2","shift":"8.30-10.30am","start":"08:30","end":"10:30","hours":2,"location":"Prai","pool":"Industrial","allowedDays":[1],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"Dell2|||2-4pm","facility":"Dell2","shift":"2-4pm","start":"14:00","end":"16:00","hours":2,"location":"Prai","pool":"Industrial","allowedDays":[3],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"Infineon|||9-1pm","facility":"Infineon","shift":"9-1pm","start":"09:00","end":"13:00","hours":4,"location":"Kulim","pool":"Industrial","allowedDays":[0,1,2,3,4],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"Infineon|||2-6pm","facility":"Infineon","shift":"2-6pm","start":"14:00","end":"18:00","hours":4,"location":"Kulim","pool":"Industrial","allowedDays":[0,1,2,3,4],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"Honeywell|||2-4pm","facility":"Honeywell","shift":"2-4pm","start":"14:00","end":"16:00","hours":2,"location":"Prai","pool":"Industrial","allowedDays":[0,3],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"UOP|||2-4pm","facility":"UOP","shift":"2-4pm","start":"14:00","end":"16:00","hours":2,"location":"Prai","pool":"Industrial","allowedDays":[2],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"Bbraun 10|||8.30-12.30pm","facility":"Bbraun 10","shift":"8.30-12.30pm","start":"08:30","end":"12:30","hours":4,"location":"Penang Island","pool":"Industrial","allowedDays":[0,1,2,3,4],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"Bbraun 10|||2-6pm","facility":"Bbraun 10","shift":"2-6pm","start":"14:00","end":"18:00","hours":4,"location":"Penang Island","pool":"Industrial","allowedDays":[0,1,2,3,4],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"Bbraun 3|||8.30-12.30pm","facility":"Bbraun 3","shift":"8.30-12.30pm","start":"08:30","end":"12:30","hours":4,"location":"Penang Island","pool":"Industrial","allowedDays":[0,1,2,3,4],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"Bbraun 3|||2-6pm","facility":"Bbraun 3","shift":"2-6pm","start":"14:00","end":"18:00","hours":4,"location":"Penang Island","pool":"Industrial","allowedDays":[0,1,2,3,4],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"Bbraun MCU|||8-12pm","facility":"Bbraun MCU","shift":"8-12pm","start":"08:00","end":"12:00","hours":4,"location":"Penang Island","pool":"Industrial","allowedDays":[0,1,2,3,4],"locumOnly":true,"ohdReq":false,"atns":false,"custom":true},{"id":"NI|||11.15-1.15pm","facility":"NI","shift":"11.15-1.15pm","start":"11:15","end":"13:15","hours":2,"location":"Penang Island","pool":"Industrial","allowedDays":[0],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"NI|||2-6pm","facility":"NI","shift":"2-6pm","start":"14:00","end":"18:00","hours":4,"location":"Penang Island","pool":"Industrial","allowedDays":[1],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"NI|||9-1pm","facility":"NI","shift":"9-1pm","start":"09:00","end":"13:00","hours":4,"location":"Penang Island","pool":"Industrial","allowedDays":[2],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"NI|||8.45-10.45am","facility":"NI","shift":"8.45-10.45am","start":"08:45","end":"10:45","hours":2,"location":"Penang Island","pool":"Industrial","allowedDays":[3],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"St Jude|||11-1pm","facility":"St Jude","shift":"11-1pm","start":"11:00","end":"13:00","hours":2,"location":"Penang Island","pool":"Industrial","allowedDays":[1,3],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"St Jude|||2-4pm","facility":"St Jude","shift":"2-4pm","start":"14:00","end":"16:00","hours":2,"location":"Penang Island","pool":"Industrial","allowedDays":[2],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"Analog|||10-12pm","facility":"Analog","shift":"10-12pm","start":"10:00","end":"12:00","hours":2,"location":"Penang Island","pool":"Industrial","allowedDays":[0,4],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"Analog|||2-4pm","facility":"Analog","shift":"2-4pm","start":"14:00","end":"16:00","hours":2,"location":"Penang Island","pool":"Industrial","allowedDays":[2],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"Lumileds plant 1|||2-4pm","facility":"Lumileds plant 1","shift":"2-4pm","start":"14:00","end":"16:00","hours":2,"location":"Penang Island","pool":"Industrial","allowedDays":[0],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"Lumileds plant 2|||2-4pm","facility":"Lumileds plant 2","shift":"2-4pm","start":"14:00","end":"16:00","hours":2,"location":"Penang Island","pool":"Industrial","allowedDays":[1],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"Ibiden (Bkt Minyak)|||1030am-1230pm","facility":"Ibiden (Bkt Minyak)","shift":"1030am-1230pm","start":"10:30","end":"12:30","hours":2,"location":"Batu Kawan","pool":"Industrial","allowedDays":[0,1,2,3,4,5,6],"locumOnly":false,"ohdReq":false,"atns":false,"custom":true},{"id":"Ibiden (Bkt Minyak)|||7-9pm","facility":"Ibiden (Bkt Minyak)","shift":"7-9pm","start":"19:00","end":"21:00","hours":2,"location":"Batu Kawan","pool":"Industrial","allowedDays":[0,1,2,3,4,5,6],"locumOnly":false,"ohdReq":false,"atns":false,"custom":true},{"id":"Smith & nephew (BK)|||11-1pm","facility":"Smith & nephew (BK)","shift":"11-1pm","start":"11:00","end":"13:00","hours":2,"location":"Batu Kawan","pool":"Industrial","allowedDays":[0,1,2,3,4],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"LAM Research|||930-1230pm","facility":"LAM Research","shift":"930-1230pm","start":"09:30","end":"12:30","hours":3,"location":"Batu Kawan","pool":"Industrial","allowedDays":[0,3],"locumOnly":false,"ohdReq":true,"atns":false},{"id":"LAM Research|||2-5pm","facility":"LAM Research","shift":"2-5pm","start":"14:00","end":"17:00","hours":3,"location":"Batu Kawan","pool":"Industrial","allowedDays":[1,2],"locumOnly":false,"ohdReq":true,"atns":false},{"id":"Mini Grande (AM) Prai|||830-1030am","facility":"Mini Grande (AM) Prai","shift":"830-1030am","start":"08:30","end":"10:30","hours":2,"location":"Prai","pool":"Industrial","allowedDays":[0,1,2,3,4],"locumOnly":false,"ohdReq":false,"atns":false,"custom":true},{"id":"Mini Grande (PM) Prai|||330-530pm","facility":"Mini Grande (PM) Prai","shift":"330-530pm","start":"15:30","end":"17:30","hours":2,"location":"Prai","pool":"Industrial","allowedDays":[0,1,2,3,4],"locumOnly":false,"ohdReq":false,"atns":false,"custom":true},{"id":"Grande (AM) Bt Kawan|||830-12pm","facility":"Grande (AM) Bt Kawan","shift":"830-12pm","start":"08:30","end":"12:00","hours":3.5,"location":"Batu Kawan","pool":"Industrial","allowedDays":[0,1,2,3,4],"locumOnly":false,"ohdReq":false,"atns":false,"custom":true},{"id":"Grande (PM) Bt Kawan|||330-6pm","facility":"Grande (PM) Bt Kawan","shift":"330-6pm","start":"15:30","end":"18:00","hours":2.5,"location":"Batu Kawan","pool":"Industrial","allowedDays":[0,1,2,3,4],"locumOnly":false,"ohdReq":false,"atns":false,"custom":true},{"id":"HP (Batu kawan)|||11-1pm","facility":"HP (Batu kawan)","shift":"11-1pm","start":"11:00","end":"13:00","hours":2,"location":"Batu Kawan","pool":"Industrial","allowedDays":[3],"locumOnly":false,"ohdReq":false,"atns":false,"custom":true},{"id":"HP (Batu kawan)|||3-5pm","facility":"HP (Batu kawan)","shift":"3-5pm","start":"15:00","end":"17:00","hours":2,"location":"Batu Kawan","pool":"Industrial","allowedDays":[0],"locumOnly":false,"ohdReq":false,"atns":false,"custom":true},{"id":"FUJI|||2-4pm","facility":"FUJI","shift":"2-4pm","start":"14:00","end":"16:00","hours":2,"location":"Kulim","pool":"Industrial","allowedDays":[2],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"AT&S (kulim)|||9-1pm","facility":"AT&S (kulim)","shift":"9-1pm","start":"09:00","end":"13:00","hours":4,"location":"Kulim","pool":"Industrial","allowedDays":[0,2,4],"locumOnly":false,"ohdReq":false,"atns":true},{"id":"Exyte|||9-1pm","facility":"Exyte","shift":"9-1pm","start":"09:00","end":"13:00","hours":4,"location":"Penang Island","pool":"Industrial","allowedDays":[0,1,2,3,4],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"Exyte|||2-6pm","facility":"Exyte","shift":"2-6pm","start":"14:00","end":"18:00","hours":4,"location":"Penang Island","pool":"Industrial","allowedDays":[0,1,2,3,4],"locumOnly":false,"ohdReq":false,"atns":false},{"id":"Penta BK|||2-6pm","facility":"Penta BK","shift":"2-6pm","start":"14:00","end":"18:00","hours":4,"location":"Batu Kawan","pool":"Industrial","allowedDays":[0,1,2,3,4],"locumOnly":false,"ohdReq":true,"atns":false},{"id":"Penta Pg|||4-6pm","facility":"Penta Pg","shift":"4-6pm","start":"16:00","end":"18:00","hours":2,"location":"Penang Island","pool":"Industrial","allowedDays":[0,1,2,3,4],"locumOnly":false,"ohdReq":true,"atns":false}],"regions":["Penang Island","Prai","Batu Kawan","Kulim"],"travel":{"Penang Island":{"Penang Island":0,"Prai":20,"Batu Kawan":50,"Kulim":50},"Prai":{"Penang Island":20,"Prai":0,"Batu Kawan":20,"Kulim":20},"Batu Kawan":{"Penang Island":50,"Prai":20,"Batu Kawan":0,"Kulim":50},"Kulim":{"Penang Island":50,"Prai":20,"Batu Kawan":50,"Kulim":0}}};
+const SEED_WEEKS = {"2026-05-18":{"KSR|||AM":{"0":"Yeap SS","1":"Yeap SS","2":"Yeap SS","3":"Yeap SS","4":"Gan","5":"Gan","6":"Lingitha"},"KSR|||PM":{"0":"Yeap SS","1":"Yeap SS","2":"Noreen","3":"Yeap SS","4":"Gan","6":"aldric"},"KSR|||Nite":{"0":"Dr. Kirath","1":"Yeap SS","2":"Shazrin","3":"Amirul Izat","4":"Gan","6":"aldric"},"KSLS|||AM":{"0":"Chng","1":"Lim Ern Yang","2":"Chng","3":"Karthigesan","4":"Chng","5":"Lingitha","6":"Hong"},"KSLS|||PM":{"0":"Shazrin","1":"Lim Ern Yang","2":"Chng","3":"Karthigesan","4":"Chng","6":"Hong"},"KSLS|||Nite":{"0":"Shazrin","1":"Lim Ern Yang","2":"Tan Jin Zhi","3":"Karthigesan","4":"Angeline Ng","6":"Hong"},"Pluxhealth Setia|||AM":{"0":"Chng CH","1":"Chng CH","2":"Maxie","3":"Chng CH","4":"Chng CH","5":"Chng","6":"Cheah Tian Phern"},"Pluxhealth Setia|||PM":{"0":"Chng CH","1":"Chng CH","2":"Farzana","3":"Chng CH","4":"Chng CH","6":"Cheah Tian Phern"},"Pluxhealth Setia|||Nite":{"0":"Thuruven","1":"Chng CH","2":"Farzana","3":"Cheah Tian Phern","4":"Dr. Kirath","6":"Cheah Tian Phern"},"Pluxhealth Alora|||AM":{"0":"Eswaran","1":"Mangalaswari","2":"Noreen","3":"Tan Jin Zhi","4":"Ooi WY","5":"Ian","6":"Nurul farah"},"Pluxhealth Alora|||PM":{"0":"Chng","1":"Siyamni","2":"TanPG","3":"Tan Jin Zhi","4":"Ooi Li Pin","6":"Oh Jaan Twu"},"Pluxhealth Alora|||Evening":{"0":"Nurul farah","1":"Siyamni","2":"Dr. Kirath","3":"Tan Jin Zhi","4":"Lim Ern Yang","6":"Oh Jaan Twu"},"Pluxhealth Kulim|||AM":{"0":"Kaamini","1":"Kaamini","2":"Ami farhana","3":"Kaamini","4":"Joanne","5":"Joanne","6":"Kaamini"},"Pluxhealth Kulim|||PM":{"0":"Kaamini","1":"Kaamini","2":"Joanne","3":"Kaamini","4":"Joanne"},"Pluxhealth Kulim|||Nite":{"0":"Joanne","1":"Ong","2":"Kaamini","3":"Joanne","4":"Joanne","6":"Lim Ern Yang"},"Pluxhealth BK|||AM":{"0":"Noreen","1":"Noreen","2":"Ramvinder","3":"Ramvinder","4":"Ramvinder","5":"Noreen","6":"Syafiq"},"Pluxhealth BK|||PM":{"0":"Noreen","1":"Noreen","2":"Yeap SS","3":"Ramvinder","4":"Noreen","6":"Dinesh"},"Pluxhealth BK|||Nite":{"0":"Syafiq","1":"Logan","2":"Logan","3":"Lim Ern Yang","4":"Logan","6":"Dinesh"},"Caring|||8-1pm":{"0":"Wong","1":"Wong","2":"Wong","3":"Wong","4":"Wong","5":"Wong"},"Caring|||1-5pm":{"0":"Wong","1":"Wong","2":"Wong","3":"Wong","4":"Wong"},"Caring|||5-9pm":{"0":"Wong","1":"Raju","2":"Wong","3":"Wong","4":"Wong","6":"Wong"},"First Solar KMT2|||9-1pm":{"0":"Ong","2":"Ong","4":"Ong"},"FS (OH) KMT2|||1-5pm":{"1":"Ong","3":"Soo"},"Sanmina|||9-11am":{"0":"Dr. Kirath","1":"Lee Miaw Kiang","2":"Ooi Li Pin","3":"Lee Miaw Kiang","4":"Noreen"},"Sanmina (Prai)|||9-11am":{"0":"Farzana","1":"Farzana","2":"Farzana","3":"Farzana","4":"Farzana"},"Keysight|||9-1pm":{"0":"Amirul Izat","1":"Lim","2":"Chiang Kar Mun","3":"Ooi Li Pin","4":"Ooi Li Pin"},"Keysight|||2-6pm":{"0":"Amirul Izat","1":"TanPG","2":"Ooi WY","3":"Farzana","4":"Lim Ern Yang"},"Broadcom|||9-1pm":{"0":"Ooi Li Pin","2":"Ooi WY","4":"Lim Ern Yang"},"Dell1|||9-12pm":{"3":"Noreen"},"Dell1|||2-5pm":{"1":"Chng"},"Dell2|||8.30-10.30am":{"1":"Chng"},"Dell2|||2-4pm":{"3":"TanPG"},"Infineon|||9-1pm":{"0":"Logan","1":"Ooi WY","2":"Syafiq","3":"Ong","4":"Syafiq"},"Infineon|||2-6pm":{"0":"Logan","1":"Ooi WY","2":"Syafiq","3":"Dr. Kirath","4":"Syafiq"},"Honeywell|||2-4pm":{"0":"Ong","3":"Lim"},"UOP|||2-4pm":{"2":"Lim"},"Bbraun 10|||8.30-12.30pm":{"0":"Angeline Ooi","1":"Dr. Kirath","2":"Amirul Izat","3":"Amirul Izat","4":"Dr. Kirath"},"Bbraun 10|||2-6pm":{"0":"Farzana","1":"Dr. Kirath","2":"Amirul Izat","3":"Amirul Izat","4":"Dr. Kirath"},"Bbraun 3|||8.30-12.30pm":{"0":"Wongwaipheng","1":"Amirul Izat","2":"Tan Jin Zhi","3":"Daniel Kesavan","4":"Angeline Ooi"},"Bbraun 3|||2-6pm":{"0":"Wongwaipheng","1":"Amirul Izat","2":"Tan Jin Zhi","3":"Daniel Kesavan","4":"Kaamini"},"NI|||11.15-1.15pm":{"0":"Dr. Kirath"},"NI|||9-1pm":{"2":"Lim"},"NI|||8.45-10.45am":{"3":"Dr. Kirath"},"St Jude|||11-1pm":{"1":"Chng","3":"Dr. Kirath"},"Analog|||10-12pm":{"0":"Lee Miaw Kiang","4":"TanPG"},"Analog|||2-4pm":{"2":"Dr. Kirath"},"Lumileds plant 1|||2-4pm":{"0":"Lim"},"Lumileds plant 2|||2-4pm":{"1":"Lim"},"Ibiden (Bkt Minyak)|||1030am-1230pm":{"0":"TanPG","1":"Syafiq","2":"Hidayah","3":"TanPG","4":"Hidayah","5":"Hazriq","6":"Hazriq"},"Ibiden (Bkt Minyak)|||7-9pm":{"0":"Hazriq","1":"Syafiq","2":"Hazriq","3":"June","4":"Farzana","5":"Hazriq","6":"Hazriq"},"Smith & nephew (BK)|||11-1pm":{"4":"Logan"},"LAM Research|||930-1230pm":{"0":"Lim","3":"Lim"},"LAM Research|||2-5pm":{"1":"Syafiq","2":"Soo"},"HP (Batu kawan)|||11-1pm":{"3":"Syafiq"},"Penta BK|||4-6pm":{"0":"Syafiq"},"Penta Pg|||4-6pm":{"2":"Dr. Kirath"},"FUJI|||2-4pm":{"2":"Ong"},"AT&S (kulim)|||9-1pm":{"0":"Syafiq","4":"Kaamini"},"Exyte|||9-1pm":{"0":"Maxie","1":"Maxie","3":"Ooi WY","4":"Maxie"},"Exyte|||2-6pm":{"0":"Maxie","1":"Maxie","2":"Maxie","3":"Noreen","4":"Maxie"},"Bbraun MCU|||8-12pm":{"3":"Eswaran","4":"Andre"},"Mini Grande (AM) Prai|||830-1030am":{"0":"Joanne","1":"Joanne","2":"Lim Ern Yang","3":"Logan","4":"Lim"},"Mini Grande (PM) Prai|||330-530pm":{"0":"Joanne","1":"Joanne","2":"Lim Ern Yang","3":"Syafiq","4":"Lim"},"Grande (AM) Bt Kawan|||830-12pm":{"0":"Lim Ern Yang","1":"Logan","2":"Logan","3":"Lim Ern Yang","4":"Logan"},"Grande (PM) Bt Kawan|||330-6pm":{"0":"Lim Ern Yang","1":"Logan","2":"Logan","3":"Logan","4":"Logan"}},"2026-05-25":{"KSR|||AM":{"0":"Yeap SS","1":"Yeap SS","2":"Yeap SS","3":"Yeap SS","4":"Lim Ern Yang","5":"Logan","6":"Yeap SS"},"KSR|||PM":{"0":"Yeap SS","1":"Yeap SS","2":"Noreen","3":"Yeap SS","4":"Lim Ern Yang","6":"Yeap SS"},"KSR|||Nite":{"0":"Dr. Kirath","1":"rubhenraj","2":"Eoh","3":"Lim Li Chyn","4":"Lim Ern Yang"},"KSLS|||AM":{"0":"Eswaran","1":"Lim Ern Yang","2":"Tan Jin Zhi","3":"Tan Jin Zhi","4":"Chng","5":"Dr. Kirath","6":"Hong"},"KSLS|||PM":{"0":"Chng","1":"Lim Ern Yang","2":"Tan Jin Zhi","3":"Tan Jin Zhi","4":"Chng","6":"Hong"},"KSLS|||Nite":{"0":"Yap Ai ying","1":"Lim Ern Yang","2":"Tan Jin Zhi","3":"Tan Jin Zhi","4":"Shazrin","6":"Hong"},"Pluxhealth Setia|||AM":{"0":"Chng CH","1":"Chng CH","2":"Ong Jia wen","3":"Chng CH","4":"Chng CH","5":"Chng","6":"Cheah Tian Phern"},"Pluxhealth Setia|||PM":{"0":"Chng CH","1":"Chng CH","2":"Ong Jia wen","3":"Chng CH","4":"Chng CH","6":"Cheah Tian Phern"},"Pluxhealth Setia|||Nite":{"0":"Ian","1":"Chng CH","2":"Ong Jia wen","3":"Cheah Tian Phern","4":"Ian","6":"Cheah Tian Phern"},"Pluxhealth Alora|||AM":{"0":"Lam Han Min","1":"Lam Han Min","2":"Christal","3":"Ooi WY","4":"Lim Li Chyn","5":"Ooi WY","6":"Nurul farah"},"Pluxhealth Alora|||PM":{"0":"Lam Han Min","1":"Lam Han Min","2":"Christal","3":"Ooi WY","4":"Lim Li Chyn","6":"Oh Jaan Twu"},"Pluxhealth Alora|||Evening":{"0":"Lam Han Min","1":"Lam Han Min","2":"Christal","3":"Shazrin","4":"Gan","6":"Oh Jaan Twu"},"Pluxhealth Kulim|||AM":{"0":"Kaamini","1":"Kaamini","2":"Siva Sangkari","3":"Kaamini","4":"Ami farhana","5":"Ami farhana","6":"Kaamini"},"Pluxhealth Kulim|||PM":{"0":"Kaamini","1":"Kaamini","2":"Siva Sangkari","3":"Kaamini"},"Pluxhealth Kulim|||Nite":{"0":"Joanne","1":"Ong","2":"Siva Sangkari","3":"Joanne","6":"Lim Ern Yang"},"Pluxhealth BK|||AM":{"0":"Noreen","1":"Noreen","2":"Noreen","3":"Noreen","4":"Lim Hwei Sheng","5":"Noreen","6":"Dinesh"},"Pluxhealth BK|||PM":{"0":"Noreen","1":"Noreen","2":"Yeap SS","3":"Noreen","4":"Noreen","6":"Dinesh"},"Pluxhealth BK|||Nite":{"0":"Syafiq","1":"Logan","2":"Logan","3":"Lim Ern Yang","4":"Logan","6":"Dinesh"},"Caring|||8-1pm":{"0":"Wong","1":"Wong","2":"Wong","3":"Wong","4":"Wong","5":"Wong"},"Caring|||1-5pm":{"0":"Wong","1":"Wong","2":"Wong","3":"Wong","4":"Wong"},"Caring|||5-9pm":{"0":"Wong","1":"Raju","2":"Wong","3":"Wong","4":"Wong","6":"Wong"},"First Solar KMT2|||9-1pm":{"0":"Ong"},"Sanmina|||9-11am":{"0":"Dr. Kirath","1":"Ong","3":"Chng","4":"Ong"},"Sanmina (Prai)|||9-11am":{"0":"Farzana","1":"Farzana","3":"Farzana"},"Keysight|||9-1pm":{"0":"Tan Mun Ying","1":"Lim","3":"Shazrin","4":"Ooi Li Pin"},"Keysight|||2-6pm":{"0":"Tan Mun Ying","1":"TanPG","3":"Shazrin","4":"Kaamini"},"Broadcom|||9-1pm":{"0":"Chng","4":"Noreen"},"Dell1|||9-12pm":{"3":"Amirul Izat"},"Dell1|||2-5pm":{"1":"Chng"},"Dell2|||8.30-10.30am":{"1":"Chng"},"Dell2|||2-4pm":{"3":"Chng"},"Infineon|||9-1pm":{"0":"Amirul Izat","1":"Dr. Kirath","3":"Ong","4":"Dr. Kirath"},"Infineon|||2-6pm":{"0":"Amirul Izat","1":"Dr. Kirath","3":"Ong","4":"Dr. Kirath"},"Honeywell|||2-4pm":{"0":"Ong","3":"Lim"},"Bbraun 10|||8.30-12.30pm":{"0":"Esther Chong","1":"Chiang Kar Mun","4":"Amirul Izat"},"Bbraun 10|||2-6pm":{"0":"Farzana","1":"Eswaran","4":"Ong"},"Bbraun 3|||8.30-12.30pm":{"0":"Wongwaipheng","1":"Amirul Izat","4":"Eswaran"},"Bbraun 3|||2-6pm":{"0":"Wongwaipheng","1":"Amirul Izat","4":"Amirul Izat"},"NI|||11.15-1.15pm":{"0":"Dr. Kirath"},"NI|||8.45-10.45am":{"3":"Dr. Kirath"},"St Jude|||11-1pm":{"1":"Chng","3":"Dr. Kirath"},"Analog|||10-12pm":{"0":"TanPG","4":"TanPG"},"Lumileds plant 1|||2-4pm":{"0":"Lim"},"Lumileds plant 2|||2-4pm":{"1":"Lim"},"Ibiden (Bkt Minyak)|||1030am-1230pm":{"0":"Daniel Kesavan","1":"Revathy","2":"Revathy","3":"TanPG","5":"Hazriq","6":"Hazriq"},"Ibiden (Bkt Minyak)|||7-9pm":{"0":"Hazriq","1":"Revathy","2":"Hazriq","3":"Dr. Kirath","4":"Hazriq","5":"Hazriq"},"LAM Research|||930-1230pm":{"0":"Lim","3":"Lim"},"LAM Research|||2-5pm":{"2":"Farzana"},"HP (Batu kawan)|||11-1pm":{"3":"Syafiq"},"AT&S (kulim)|||9-1pm":{"0":"Syafiq","2":"Kaamini","4":"Kaamini"},"Exyte|||9-1pm":{"0":"Eoh","1":"Tan Jin Zhi","3":"Maxie","4":"Teoh Zher wei"},"Exyte|||2-6pm":{"0":"Eoh","1":"Tan Jin Zhi","3":"Amirul Izat","4":"Nabilah"},"Mini Grande (AM) Prai|||830-1030am":{"0":"Joanne","1":"Joanne","2":"Lim Ern Yang","3":"Lim Ern Yang","4":"Lim"},"Mini Grande (PM) Prai|||330-530pm":{"0":"Joanne","1":"Joanne","2":"Lim Ern Yang","3":"Syafiq","4":"Lim"},"Grande (AM) Bt Kawan|||830-12pm":{"0":"Lim Ern Yang","1":"Logan","2":"Logan","3":"Logan","4":"Logan"},"Grande (PM) Bt Kawan|||330-6pm":{"0":"Lim Ern Yang","1":"Logan","2":"Logan","3":"Logan","4":"Logan"}},"2026-07-13":{"KSR|||AM":{"0":"Yeap SS","1":"Yeap SS","2":"Farzana","3":"Yeap SS","4":"Lim Ern Yang","5":"Amirul Izat","6":"Yeap SS"},"KSR|||PM":{"0":"Yeap SS","1":"Yeap SS","2":"Farzana","3":"Yeap SS","4":"Lim Ern Yang","6":"Yeap SS"},"KSR|||Nite":{"0":"Dr. Kirath","1":"Cheah Tian Phern","2":"Dr. Kirath","3":"Amirul Izat","4":"Lim Ern Yang","6":"Deivanai"},"KSLS|||AM":{"0":"Navin","1":"Deivanai","2":"Navin","3":"Karthi","4":"Chng","5":"Dr. Kirath","6":"Thanesh"},"KSLS|||PM":{"0":"Navin","1":"Deivanai","2":"Navin","3":"Karthi","4":"Chng","6":"Thanesh"},"KSLS|||Nite":{"0":"Angeline Ng","1":"Lim Ern Yang","2":"Tan Jin Zhi","3":"Karthi","4":"Dr. Kirath","6":"Thanesh"},"Pluxhealth Setia|||AM":{"0":"Loshana","1":"Karthigesan","2":"Karthigesan","3":"Loshana","4":"Chng CH","5":"Chng","6":"Cheah Tian Phern"},"Pluxhealth Setia|||PM":{"0":"Loshana","1":"Karthigesan","2":"Karthigesan","3":"Loshana","4":"Chng CH","6":"Cheah Tian Phern"},"Pluxhealth Setia|||Nite":{"0":"Lim Li Chyn","1":"Karthigesan","2":"Karthigesan","3":"Cheah Tian Phern","4":"Gan","6":"Ian"},"Pluxhealth Alora|||AM":{"0":"Kesevan","1":"Lim Sze Wei","2":"Lim Sze Wei","3":"Ooi WY","4":"Ooi WY","5":"Ooi WY","6":"Viriya"},"Pluxhealth Alora|||PM":{"0":"Kesevan","1":"Lim Sze Wei","2":"Lim Sze Wei","3":"Ooi WY","4":"Ooi WY","6":"Oh Jaan Twu"},"Pluxhealth Alora|||Evening":{"0":"Ooi WY","1":"Lim Sze Wei","2":"Lim Sze Wei","3":"Nabilah","4":"Angeline Ng","6":"Oh Jaan Twu"},"Pluxhealth Kulim|||AM":{"0":"Kaamini","1":"Kaamini","2":"Kaamini","3":"Kaamini","4":"Kaamini","5":"Joanne","6":"Syafiq"},"Pluxhealth Kulim|||PM":{"0":"Kaamini","1":"Kaamini","2":"Joanne","3":"Kaamini","4":"Joanne"},"Pluxhealth Kulim|||Nite":{"0":"Joanne","1":"Ong","2":"Joanne","3":"Joanne","4":"Joanne","6":"Lim Ern Yang"},"Pluxhealth BK|||AM":{"0":"Noreen","1":"Farzana","2":"Yeap SS","3":"Ramvinder","4":"Kartiga","5":"Noreen","6":"Kaamini"},"Pluxhealth BK|||PM":{"0":"Noreen","1":"Farzana","2":"Yeap SS","3":"Farzana","4":"Farzana","6":"Dinesh"},"Pluxhealth BK|||Nite":{"0":"Dinesh","1":"Logan","2":"Logan","3":"Lim Ern Yang","4":"Logan","6":"Dinesh"},"Caring|||8-1pm":{"0":"Wong","1":"Wong","2":"Wong","3":"Wong","4":"Wong","5":"Wong"},"Caring|||1-5pm":{"0":"Wong","1":"Wong","2":"Wong","3":"Wong","4":"Wong"},"Caring|||5-9pm":{"0":"Wong","1":"Raju","2":"Wong","3":"Wong","4":"Wong","6":"Wong"},"First Solar KMT2|||9-1pm":{"0":"Ong","2":"Ong","4":"Ong"},"FS (OH) KMT2|||1-5pm":{"1":"Ong","3":"Soo"},"Sanmina|||9-11am":{"1":"Dr. Kirath","2":"Charmaine Yim","3":"Noreen","4":"Farzana"},"Sanmina (Prai)|||9-11am":{"1":"Noreen","2":"Noreen","3":"Noreen","4":"Noreen"},"Keysight|||9-1pm":{"1":"Lim","2":"Omar","3":"Lim Sze Wei","4":"Renuka"},"Keysight|||2-6pm":{"1":"Noreen","2":"Ooi WY","3":"Lim Sze Wei","4":"Kaamini"},"Broadcom|||9-1pm":{"0":"Omar","2":"Ooi WY","4":"Gan"},"Dell1|||9-12pm":{"3":"Lim"},"Dell1|||2-5pm":{"1":"Lim Ern Yang"},"Dell2|||8.30-10.30am":{"1":"Lim Ern Yang"},"Dell2|||2-4pm":{"3":"TanPG"},"Infineon|||9-1pm":{"0":"Lim Ern Yang","1":"Ooi WY","2":"Syafiq","3":"Ong","4":"Syafiq"},"Infineon|||2-6pm":{"0":"Lim Ern Yang","1":"Ooi WY","2":"Syafiq","3":"Ong","4":"Syafiq"},"Honeywell|||2-4pm":{"3":"Dr. Kirath"},"UOP|||2-4pm":{"2":"Lim"},"Bbraun 10|||8.30-12.30pm":{"0":"Amirul Izat","1":"Kesevan","2":"Amirul Izat","3":"Lim Ern Yang","4":"Amirul Izat"},"Bbraun 10|||2-6pm":{"0":"Amirul Izat","1":"Dr. Kirath","2":"Amirul Izat","3":"Amirul Izat","4":"Ong"},"Bbraun 3|||8.30-12.30pm":{"0":"Wongwaipheng","1":"Amirul Izat","2":"Chiang Kar Mun","3":"Andre","4":"Andre"},"Bbraun 3|||2-6pm":{"0":"Wongwaipheng","1":"Amirul Izat","2":"Noreen","3":"Noreen","4":"Amirul Izat"},"NI|||9-1pm":{"2":"Lim"},"NI|||8.45-10.45am":{"3":"Dr. Kirath"},"St Jude|||11-1pm":{"1":"Lim Ern Yang","3":"Dr. Kirath"},"Analog|||10-12pm":{"0":"Lee Miaw Kiang","4":"TanPG"},"Analog|||2-4pm":{"2":"TanPG"},"Lumileds plant 2|||2-4pm":{"1":"Lim"},"Ibiden (Bkt Minyak)|||1030am-1230pm":{"0":"TanPG","1":"Syafiq","2":"Ramvinder","3":"TanPG","4":"Ramvinder","5":"Logan","6":"Ros Azmira"},"Ibiden (Bkt Minyak)|||7-9pm":{"0":"Farzana","1":"Syafiq","2":"Hazriq","3":"Goh Yen Lin","4":"June","5":"Hazriq","6":"Hazriq"},"Smith & nephew (BK)|||11-1pm":{"2":"Logan"},"LAM Research|||930-1230pm":{"3":"Amirul Izat"},"LAM Research|||2-5pm":{"1":"Syafiq","2":"Soo"},"HP (Batu kawan)|||11-1pm":{"3":"Syafiq"},"FUJI|||2-4pm":{"2":"Ong"},"AT&S (kulim)|||9-1pm":{"0":"Dr. Kirath","2":"Dr. Kirath","4":"Dr. Kirath"},"Exyte|||9-1pm":{"1":"Tan Jin Zhi","2":"Tan Jin Zhi","3":"Abdul Rahman","4":"Tan Jin Zhi"},"Exyte|||2-6pm":{"1":"Ashley Ngooi","2":"Tan Jin Zhi","3":"Abdul Rahman","4":"Gan"},"Bbraun MCU|||8-12pm":{"2":"Angeline Ooi","3":"Angeline Ooi"},"Mini Grande (AM) Prai|||830-1030am":{"0":"Joanne","1":"Joanne","2":"Logan","3":"Joanne","4":"Joanne"},"Mini Grande (PM) Prai|||330-530pm":{"0":"Joanne","1":"Joanne","2":"Lim Ern Yang","3":"Syafiq","4":"Noreen"},"Grande (AM) Bt Kawan|||830-12pm":{"0":"Logan","1":"Logan","2":"Lim Ern Yang","3":"Logan","4":"Logan"},"Grande (PM) Bt Kawan|||330-6pm":{"0":"Logan","1":"Logan","2":"Logan","3":"Logan","4":"Logan"}},"2026-07-20":{"KSR|||AM":{"0":"Yeap SS","1":"Yeap SS","2":"Farzana","3":"Yeap SS","4":"Lim Ern Yang","5":"Amirul Izat","6":"Yeap Ai Ying"},"KSR|||PM":{"0":"Yeap SS","1":"Yeap SS","2":"Farzana","3":"Yeap SS","4":"Lim Ern Yang","6":"Yeap Ai Ying"},"KSR|||Nite":{"0":"Dr. Kirath","1":"Cheah Tian Phern","2":"Farzana","3":"Amirul Izat","4":"Lim Ern Yang","6":"Dr. Kirath"},"KSLS|||AM":{"0":"Arthiie","1":"Arthiie","2":"Arthiie","3":"Arthiie","4":"Arthiie","5":"Deivanai","6":"Hong"},"KSLS|||PM":{"0":"Kesevan","1":"Lim Ern Yang","2":"Arthiie","3":"Chng","4":"Chng","6":"Hong"},"KSLS|||Nite":{"0":"Sush","1":"Lim Ern Yang","2":"Tan Jin Zhi","3":"Chng","4":"Dr. Kirath","6":"Hong"},"Pluxhealth Setia|||AM":{"0":"Chng CH","1":"Chng CH","2":"Chng CH","3":"Chng CH","4":"Chng CH","5":"Chng","6":"Cheah Tian Phern"},"Pluxhealth Setia|||PM":{"0":"Chng CH","1":"Chng CH","2":"Chng CH","3":"Chng CH","4":"Chng CH","6":"Cheah Tian Phern"},"Pluxhealth Setia|||Nite":{"0":"Teo Jing Yi","1":"Chng CH","2":"Chng CH","3":"Cheah Tian Phern","4":"Angeline Ng","6":"Ian"},"Pluxhealth Alora|||AM":{"0":"Ooi WY","1":"Lim Sze Wei","2":"Lim Sze Wei","3":"Ooi WY","4":"Ooi WY","5":"Ooi WY","6":"Nurul farah"},"Pluxhealth Alora|||PM":{"0":"Ooi WY","1":"Lim Sze Wei","2":"Lim Sze Wei","3":"Ooi WY","4":"Ooi WY","6":"Oh Jaan Twu"},"Pluxhealth Alora|||Evening":{"0":"Ooi WY","1":"Lim Sze Wei","2":"Lim Sze Wei","3":"Nabilah","4":"Arthiie","6":"Oh Jaan Twu"},"Pluxhealth Kulim|||AM":{"0":"Yugamalar","1":"Lim Ern Yang","2":"Kaamini","3":"Kaamini","4":"Joanne","5":"Nithiyaa","6":"Syafiq"},"Pluxhealth Kulim|||PM":{"0":"Yugamalar","1":"Noreen","2":"Joanne","3":"Kaamini","4":"Joanne"},"Pluxhealth Kulim|||Nite":{"0":"Joanne","1":"Ong","2":"Joanne","3":"Nazirul","4":"Nithiyaa","6":"Lim Ern Yang"},"Pluxhealth BK|||AM":{"0":"Farzana","1":"Farzana","2":"Yeap SS","3":"Farzana","4":"Farzana","5":"Noreen","6":"Lim Hwei Sheng"},"Pluxhealth BK|||PM":{"0":"Farzana","1":"Farzana","2":"Yeap SS","3":"Farzana","4":"Farzana","6":"Lim Hwei Sheng"},"Pluxhealth BK|||Nite":{"0":"Syafiq","1":"Logan","2":"Logan","3":"Farzana","4":"Logan","6":"Lim Hwei Sheng"},"Caring|||8-1pm":{"0":"Wong","1":"Wong","2":"Wong","3":"Wong","4":"Wong","5":"Wong"},"Caring|||1-5pm":{"0":"Wong","1":"Wong","2":"Wong","3":"Wong","4":"Wong"},"Caring|||5-9pm":{"0":"Wong","1":"Raju","2":"Wong","3":"Wong","4":"Wong","6":"Wong"},"First Solar KMT2|||9-1pm":{"0":"Ong","2":"Ong","4":"Ong"},"FS (OH) KMT2|||1-5pm":{"1":"Ong","3":"Soo"},"Sanmina|||9-11am":{"0":"Dr. Kirath","1":"Chng","2":"Lee Miaw Kiang","3":"Lim Ern Yang","4":"Charmaine Yim"},"Sanmina (Prai)|||9-11am":{"0":"Noreen","1":"Noreen","2":"Noreen","3":"Noreen","4":"Noreen"},"Keysight|||9-1pm":{"0":"Chng","1":"Renuka","2":"Lim Li Chyn","3":"Lim Sze Wei","4":"Chiang Kar Mun"},"Keysight|||2-6pm":{"0":"Chng","1":"TanPG","2":"Ooi WY","3":"Lim Sze Wei","4":"Noreen"},"Broadcom|||9-1pm":{"0":"Esther Chong","2":"Chng","4":"Chng"},"Dell1|||9-12pm":{"3":"Lim Li Chyn"},"Dell1|||2-5pm":{"1":"Chng"},"Dell2|||8.30-10.30am":{"1":"Dr. Kirath"},"Dell2|||2-4pm":{"3":"TanPG"},"Infineon|||9-1pm":{"0":"Lim Ern Yang","1":"Ooi WY","2":"Syafiq","3":"Ong","4":"Syafiq"},"Infineon|||2-6pm":{"0":"Lim Ern Yang","1":"Ooi WY","2":"Syafiq","3":"Ong","4":"Syafiq"},"Honeywell|||2-4pm":{"0":"Ong","3":"Syafiq"},"Bbraun 10|||8.30-12.30pm":{"0":"Deivanai","1":"Deivanai","2":"Amirul Izat","3":"Ashley Ngooi","4":"Amirul Izat"},"Bbraun 10|||2-6pm":{"0":"Deivanai","1":"Deivanai","2":"Amirul Izat","3":"Amirul Izat","4":"Ong"},"Bbraun 3|||8.30-12.30pm":{"0":"Wongwaipheng","1":"Amirul Izat","2":"Deivanai","3":"Eswaran","4":"Angeline Ooi"},"Bbraun 3|||2-6pm":{"0":"Thexeisha Yeap","1":"Amirul Izat","2":"Nabilah","3":"Noreen","4":"Amirul Izat"},"NI|||11.15-1.15pm":{"0":"Dr. Kirath"},"NI|||9-1pm":{"2":"Ooi WY"},"NI|||8.45-10.45am":{"3":"Chng"},"St Jude|||11-1pm":{"1":"Dr. Kirath","3":"Chng"},"Analog|||10-12pm":{"0":"Lee Miaw Kiang","4":"TanPG"},"Analog|||2-4pm":{"2":"TanPG"},"Lumileds plant 1|||2-4pm":{"0":"Amirul Izat"},"Lumileds plant 2|||2-4pm":{"1":"Dr. Kirath"},"Ibiden (Bkt Minyak)|||1030am-1230pm":{"0":"TanPG","1":"Syafiq","2":"Ramvinder","3":"TanPG","4":"Eswaran","5":"Logan","6":"Eswaran"},"Ibiden (Bkt Minyak)|||7-9pm":{"0":"Goh Yen Lin","1":"Syafiq","2":"June","3":"Hazriq","4":"June","5":"Hazriq","6":"Hazriq"},"LAM Research|||930-1230pm":{"0":"Amirul Izat","3":"Amirul Izat"},"LAM Research|||2-5pm":{"1":"Syafiq","2":"Soo"},"Penta Pg|||4-6pm":{"2":"Noreen"},"HP (Batu kawan)|||11-1pm":{"3":"Syafiq"},"FUJI|||2-4pm":{"2":"Ong"},"AT&S (kulim)|||9-1pm":{"0":"Syafiq","2":"Dr. Kirath","4":"Dr. Kirath"},"Exyte|||9-1pm":{"0":"Tan Jin Zhi","1":"Aalinah","2":"Tan Jin Zhi","3":"Lee Wei Le","4":"Tan Jin Zhi"},"Exyte|||2-6pm":{"0":"Sarass","1":"Abdul Rahman","2":"Tan Jin Zhi","3":"Lee Wei Le","4":"Tan Jin Zhi"},"Penta BK|||2-6pm":{"0":"Noreen"},"HP (Batu kawan)|||3-5pm":{"0":"Syafiq"},"St Jude|||2-4pm":{"2":"Chng"},"Bbraun MCU|||8-12pm":{"2":"Angeline Ooi","3":"Angeline Ooi"},"Mini Grande (AM) Prai|||830-1030am":{"0":"Joanne","1":"Joanne","2":"Lim Ern Yang","3":"Dr. Kirath","4":"Kaamini"},"Mini Grande (PM) Prai|||330-530pm":{"0":"Joanne","1":"Joanne","2":"Lim Ern Yang","3":"Lim Ern Yang","4":"Kaamini"},"Grande (AM) Bt Kawan|||830-12pm":{"0":"Logan","1":"Logan","2":"Logan","3":"Logan","4":"Logan"},"Grande (PM) Bt Kawan|||330-6pm":{"0":"Logan","1":"Logan","2":"Logan","3":"Logan","4":"Logan"}},"2026-07-27":{"KSR|||AM":{"0":"Yeap SS","1":"Yeap SS","2":"Farzana","3":"Yeap SS","4":"Lim Ern Yang","5":"Amirul Izat","6":"Yeap SS"},"KSR|||PM":{"0":"Yeap SS","1":"Yeap SS","2":"Farzana","3":"Yeap SS","4":"Lim Ern Yang","6":"Yeap SS"},"KSR|||Nite":{"0":"Locum","1":"Cheah Tian Phern","2":"Farzana","3":"Amirul Izat","4":"Lim Ern Yang","6":"Locum"},"KSLS|||AM":{"0":"Chng","1":"Leong MF","2":"Chng","3":"Chng","4":"Chng","5":"Dr. Kirath","6":"Locum"},"KSLS|||PM":{"0":"Chng","1":"Lim Ern Yang","2":"Chng","3":"Chng","4":"Chng","6":"Locum"},"KSLS|||Nite":{"0":"Tan Jin Zhi","1":"Lim Ern Yang","2":"Tan Jin Zhi","3":"Chng","4":"Locum","6":"Locum"},"Pluxhealth Setia|||AM":{"0":"Chng CH","1":"Chng CH","2":"Chng CH","3":"Chng CH","4":"Chng CH","5":"Chng","6":"Cheah Tian Phern"},"Pluxhealth Setia|||PM":{"0":"Chng CH","1":"Chng CH","2":"Chng CH","3":"Chng CH","4":"Chng CH","6":"Cheah Tian Phern"},"Pluxhealth Setia|||Nite":{"0":"Locum","1":"Chng CH","2":"Chng CH","3":"Cheah Tian Phern","4":"Locum","6":"Ian"},"Pluxhealth Alora|||AM":{"0":"Ooi WY","1":"Lim Sze Wei","2":"Lim Sze Wei","3":"Locum","4":"Ooi WY","5":"Ooi WY","6":"Nurul farah"},"Pluxhealth Alora|||PM":{"0":"Ooi WY","1":"Lim Sze Wei","2":"Lim Sze Wei","3":"Noreen","4":"Ooi WY","6":"Oh Jaan Twu"},"Pluxhealth Alora|||Evening":{"0":"Ooi WY","1":"Lim Sze Wei","2":"Lim Sze Wei","3":"Noreen","4":"Locum","6":"Oh Jaan Twu"},"Pluxhealth Kulim|||AM":{"0":"Kaamini","1":"Kaamini","2":"Kaamini","3":"Kaamini","4":"Joanne","5":"Joanne","6":"Syafiq"},"Pluxhealth Kulim|||PM":{"0":"Kaamini","1":"Kaamini","2":"Joanne","3":"Kaamini","4":"Joanne"},"Pluxhealth Kulim|||Nite":{"0":"Joanne","1":"Ong","2":"Locum","3":"Joanne","4":"Joanne","6":"Lim Ern Yang"},"Pluxhealth BK|||AM":{"0":"Farzana","1":"Farzana","2":"Yeap SS","3":"Farzana","4":"Farzana","5":"Noreen","6":"Kaamini"},"Pluxhealth BK|||PM":{"0":"Farzana","1":"Farzana","2":"Yeap SS","3":"Farzana","4":"Farzana","6":"Dinesh"},"Pluxhealth BK|||Nite":{"0":"Syafiq","1":"Dr. Kirath","2":"Dr. Kirath","3":"Lim Ern Yang","4":"Dr. Kirath","6":"Dinesh"},"Caring|||8-1pm":{"0":"Wong","1":"Wong","2":"Wong","3":"Wong","4":"Wong","5":"Wong"},"Caring|||1-5pm":{"0":"Wong","1":"Wong","2":"Wong","3":"Wong","4":"Wong"},"Caring|||5-9pm":{"0":"Wong","1":"Raju","2":"Wong","3":"Wong","4":"Wong","6":"Wong"},"First Solar KMT2|||9-1pm":{"0":"Ong","2":"Ong","4":"Ong"},"FS (OH) KMT2|||1-5pm":{"1":"Ong","3":"Soo"},"Sanmina|||9-11am":{"0":"Dr. Kirath","1":"Ong","2":"Locum","3":"Locum","4":"Locum"},"Sanmina (Prai)|||9-11am":{"0":"Noreen","1":"Noreen","2":"Joanne","3":"Noreen","4":"Noreen"},"Keysight|||9-1pm":{"0":"Andre","1":"Lim","2":"Locum","3":"Lim Sze Wei","4":"Andre"},"Keysight|||2-6pm":{"0":"Amirul Izat","1":"TanPG","2":"Ooi WY","3":"Lim Sze Wei","4":"Noreen"},"Broadcom|||9-1pm":{"0":"Leong MF","2":"Ooi WY","4":"Locum"},"Dell1|||9-12pm":{"3":"Andre"},"Dell1|||2-5pm":{"1":"Chng"},"Dell2|||8.30-10.30am":{"1":"Chng"},"Dell2|||2-4pm":{"3":"TanPG"},"Infineon|||9-1pm":{"0":"Lim Ern Yang","1":"Ooi WY","2":"Syafiq","3":"Ong","4":"Syafiq"},"Infineon|||2-6pm":{"0":"Lim Ern Yang","1":"Ooi WY","2":"Syafiq","3":"Ong","4":"Syafiq"},"Honeywell|||2-4pm":{"0":"Ong","3":"Lim"},"UOP|||2-4pm":{"2":"Lim"},"Bbraun 10|||8.30-12.30pm":{"0":"Amirul Izat","1":"Lim Ern Yang","2":"Amirul Izat","3":"Amirul Izat","4":"Amirul Izat"},"Bbraun 10|||2-6pm":{"0":"Noreen","1":"Noreen","2":"Amirul Izat","3":"Amirul Izat","4":"Ong"},"Bbraun 3|||8.30-12.30pm":{"0":"Locum","1":"Amirul Izat","2":"Noreen","3":"Kesevan","4":"Locum"},"Bbraun 3|||2-6pm":{"0":"Locum","1":"Amirul Izat","2":"Noreen","3":"Dr. Kirath","4":"Amirul Izat"},"NI|||11.15-1.15pm":{"0":"Dr. Kirath"},"NI|||9-1pm":{"2":"Lim"},"NI|||8.45-10.45am":{"3":"Dr. Kirath"},"St Jude|||11-1pm":{"1":"Chng","3":"Dr. Kirath"},"Analog|||10-12pm":{"0":"TanPG","4":"TanPG"},"Analog|||2-4pm":{"2":"TanPG"},"Lumileds plant 1|||2-4pm":{"0":"Lim"},"Lumileds plant 2|||2-4pm":{"1":"Lim"},"Ibiden (Bkt Minyak)|||1030am-1230pm":{"0":"Locum","1":"Syafiq","2":"Locum","3":"TanPG","4":"Locum","5":"Locum","6":"Locum"},"Ibiden (Bkt Minyak)|||7-9pm":{"0":"Locum","1":"Syafiq","2":"Locum","3":"Locum","4":"Locum","5":"Locum","6":"Locum"},"LAM Research|||930-1230pm":{"0":"Lim","3":"Lim"},"LAM Research|||2-5pm":{"1":"Syafiq","2":"Soo"},"HP (Batu kawan)|||11-1pm":{"3":"Syafiq"},"FUJI|||2-4pm":{"2":"Ong"},"AT&S (kulim)|||9-1pm":{"0":"Syafiq","2":"Locum","4":"Kaamini"},"Exyte|||9-1pm":{"0":"Tan Jin Zhi","1":"Tan Jin Zhi","2":"Tan Jin Zhi","3":"Tan Jin Zhi","4":"Tan Jin Zhi"},"Exyte|||2-6pm":{"0":"Tan Jin Zhi","1":"Tan Jin Zhi","2":"Tan Jin Zhi","3":"Tan Jin Zhi","4":"Tan Jin Zhi"},"Bbraun MCU|||8-12pm":{"2":"Locum","3":"Locum"},"Mini Grande (AM) Prai|||830-1030am":{"0":"Joanne","1":"Joanne","2":"Lim Ern Yang","3":"Lim Ern Yang","4":"Lim"},"Mini Grande (PM) Prai|||330-530pm":{"0":"Joanne","1":"Joanne","2":"Lim Ern Yang","3":"Syafiq","4":"Kaamini"},"Grande (AM) Bt Kawan|||830-12pm":{"0":"Logan","1":"Dr. Kirath","2":"Dr. Kirath","3":"Ooi WY","4":"Dr. Kirath"},"Grande (PM) Bt Kawan|||330-6pm":{"0":"Dr. Kirath","1":"Dr. Kirath","2":"Dr. Kirath","3":"Ooi WY","4":"Dr. Kirath"}},"2026-07-06":{},"2026-06-29":{}};
+const SEED_HOLIDAYS = [{"id":"seedhol-20260527","date":"2026-05-27","name":"Public Holiday","clinics":["First Solar KMT2","Sanmina","Sanmina (Prai)","Keysight","Broadcom","Infineon","Bbraun 10","Bbraun 3","Bbraun MCU","NI","Analog","FUJI","Exyte"]},{"id":"seedhol-20260528","date":"2026-05-28","name":"Public Holiday","clinics":["Bbraun 10","Bbraun 3","LAM Research"]},{"id":"seedhol-20260713","date":"2026-07-13","name":"Public Holiday","clinics":["Exyte","Honeywell","Keysight","LAM Research","Lumileds plant 1","NI","Sanmina","Sanmina (Prai)"]}];
+const SEED_REMARKS = {"2026-07-20":{"AT&S (kulim)|||9-1pm__0":"confirmed","Pluxhealth Alora|||PM__3":"until 6pm","Pluxhealth Alora|||Evening__3":"6-9pm"}};
+const DOW = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+const DOW_S = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const PALETTE = ["#ffd7a8","#fdf0a0","#c3f3c0","#a6e8ef","#aec9ff","#c9bdff","#f6c8ef",
+                 "#ffb3b3","#bdecc9","#f3d4a0","#d4c4f0","#9fe0d8","#f0b9c8","#bcd6f5"];
+const LOCUM_COLOR = "#e9eef2";
+const STORE_KEY = "doctorRosterMaker_v1";
+const SEED_VERSION = 7;
+
+// ==== SHARED SYNC (optional) ==============================================
+// To let several people share ONE live roster, paste your Cloudflare Worker
+// URL between the quotes below. Leave it blank to keep the tool local-only
+// (saved only in this browser, exactly as before).
+const SYNC_URL = "https://roster-store.kirathsidhu-stitch.workers.dev";   // your Cloudflare Worker
+const SYNC_FIELDS = ["weeks","remarks","cellState","doctors","bookings","leave","holidays","slots","places","seedVersion"];
+// ==========================================================================
+
+let state = {
+  weekStart: "2026-07-20",
+  doctors: JSON.parse(JSON.stringify(DATA.doctors)),
+  weeks: JSON.parse(JSON.stringify(SEED_WEEKS)),
+  cellState: {},
+  remarks: JSON.parse(JSON.stringify(SEED_REMARKS)),
+  bookings: [],
+  places: ["Enovix"],
+  customSlots: [],
+  slots: JSON.parse(JSON.stringify(DATA.slots)),
+  leave: [],
+  holidays: JSON.parse(JSON.stringify(SEED_HOLIDAYS)),
+  seedVersion: SEED_VERSION
+};
+let SLOTS=[];
+let SLOT_BY_ID={};
+function rebuildSlots(){
+  if(!state.slots||!state.slots.length) state.slots=JSON.parse(JSON.stringify(DATA.slots));
+  SLOTS=state.slots;
+  SLOT_BY_ID={};
+  SLOTS.forEach(s=>{ SLOT_BY_ID[s.id]=s; });
+}
+rebuildSlots();
+let validation = {cellIssues:{},bookingIssues:{},summary:[]};
+let modalCtx = null;
+
+function save(){
+  try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); flashSaved(); }
+  catch(e){ document.getElementById("saveNote").textContent = "Could not save"; }
+  try{ if(typeof Sync!=="undefined") Sync.scheduleSave(); }catch(e){}
+}
+let saveTimer=null;
+function flashSaved(){
+  const n=document.getElementById("saveNote");
+  n.textContent="Saving...";
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(()=>{n.textContent="Saved ✓";},400);
+}
+function load(){
+  try{
+    const raw=localStorage.getItem(STORE_KEY);
+    if(raw){
+      const s=JSON.parse(raw);
+      state.weekStart=s.weekStart||state.weekStart;
+      state.doctors=s.doctors||state.doctors;
+      state.weeks=s.weeks||state.weeks;
+      state.cellState=s.cellState||{};
+      state.remarks=s.remarks||{};
+      state.bookings=s.bookings||[];
+      state.places=s.places&&s.places.length?s.places:["Enovix"];
+      state.customSlots=s.customSlots||[];
+      state.slots=s.slots||null;
+      state.leave=s.leave||[];
+      state.holidays=s.holidays||[];
+      state.seedVersion=s.seedVersion||0;
+    }
+  }catch(e){}
+  rebuildAfterLoad();
+}
+// build the editable clinic list and apply any new built-in data
+function rebuildAfterLoad(){
+  if(!state.slots){
+    state.slots=JSON.parse(JSON.stringify(DATA.slots));
+    (state.customSlots||[]).forEach(cs=>{
+      if(!state.slots.some(x=>x.id===cs.id)) state.slots.push(cs);
+    });
+  }
+  state.customSlots=[];
+  if(!state.leave) state.leave=[];
+  if(!state.holidays) state.holidays=[];
+  if(!state.remarks) state.remarks={};
+  applySeedUpdates();
+}
+function applySeedUpdates(){
+  if((state.seedVersion||0)>=SEED_VERSION) return;
+  // rename doctors stored under an older spelling, and fix their roster cells
+  [["Lim Em Yang","Lim Ern Yang"],["Jia wen","Ong Jia wen"],["Cheah Tian Phe","Cheah Tian Phern"],["Ashley ngooi","Ashley Ngooi"],["sush","Sush"],["Lim Hwei Shen","Lim Hwei Sheng"]].forEach(pair=>{
+    const od=state.doctors.find(x=>x.name===pair[0]);
+    if(od&&!state.doctors.some(x=>x.name===pair[1])){
+      od.name=pair[1];
+      Object.keys(state.weeks).forEach(wk=>{
+        const w=state.weeks[wk];
+        Object.keys(w).forEach(sid=>{
+          Object.keys(w[sid]).forEach(di=>{ if(w[sid][di]===pair[0]) w[sid][di]=pair[1]; });
+        });
+      });
+      state.bookings.forEach(b=>{ if(b.doctor===pair[0]) b.doctor=pair[1]; });
+      state.leave.forEach(l=>{ if(l.doctor===pair[0]) l.doctor=pair[1]; });
+    }
+  });
+  // add any built-in doctors introduced in a newer version
+  DATA.doctors.forEach(d=>{
+    if(!state.doctors.some(x=>x.name===d.name))
+      state.doctors.push(JSON.parse(JSON.stringify(d)));
+  });
+  // add any built-in clinics introduced in a newer version
+  DATA.slots.forEach(sl=>{
+    if(!state.slots.some(x=>x.facility===sl.facility))
+      state.slots.push(JSON.parse(JSON.stringify(sl)));
+  });
+  // seed the real roster weeks for users who don't have them yet
+  Object.keys(SEED_WEEKS).forEach(wk=>{
+    if(!state.weeks[wk]||Object.keys(state.weeks[wk]).length===0)
+      state.weeks[wk]=JSON.parse(JSON.stringify(SEED_WEEKS[wk]));
+  });
+  // seed the public holidays that go with those weeks
+  SEED_HOLIDAYS.forEach(h=>{
+    if(!state.holidays.some(x=>x.date===h.date&&x.name===h.name))
+      state.holidays.push(JSON.parse(JSON.stringify(h)));
+  });
+  if((state.seedVersion||0) < 5){
+    ["2026-07-13","2026-07-20","2026-07-27"].forEach(function(wk){ if(SEED_WEEKS[wk]) state.weeks[wk]=JSON.parse(JSON.stringify(SEED_WEEKS[wk])); });
+    var _dids={}; DATA.slots.forEach(function(s){_dids[s.id]=1;});
+    var _custom=(state.slots||[]).filter(function(s){return !_dids[s.id] && s.id!=="Penta BK|||4-6pm";});
+    state.slots=JSON.parse(JSON.stringify(DATA.slots)).concat(_custom);
+    var _nr=state.doctors.find(function(d){return d.name==="Noreen";}); if(_nr) _nr.ohd=true;
+    DATA.doctors.forEach(function(d){ if(!state.doctors.some(function(x){return x.name===d.name;})) state.doctors.push(JSON.parse(JSON.stringify(d))); });
+  }
+  if((state.seedVersion||0) < 6){
+    // 18 Jul corrections: force the corrected 20-26 Jul week, the per-doctor colours and the seeded remarks
+    if(SEED_WEEKS["2026-07-20"]) state.weeks["2026-07-20"]=JSON.parse(JSON.stringify(SEED_WEEKS["2026-07-20"]));
+    DATA.doctors.forEach(function(d){ if(!state.doctors.some(function(x){return x.name===d.name;})) state.doctors.push(JSON.parse(JSON.stringify(d))); });
+    DATA.doctors.forEach(function(d){ if(d.color){ var t=state.doctors.find(function(x){return x.name===d.name;}); if(t) t.color=d.color; } });
+    if(SEED_REMARKS["2026-07-20"]) state.remarks["2026-07-20"]=JSON.parse(JSON.stringify(SEED_REMARKS["2026-07-20"]));
+  }
+  if((state.seedVersion||0) < 7){
+    state.slots=JSON.parse(JSON.stringify(DATA.slots));
+    state.doctors=JSON.parse(JSON.stringify(DATA.doctors));
+    Object.keys(SEED_WEEKS).forEach(function(wk){ state.weeks[wk]=JSON.parse(JSON.stringify(SEED_WEEKS[wk])); });
+    state.remarks=JSON.parse(JSON.stringify(SEED_REMARKS));
+    state.holidays=JSON.parse(JSON.stringify(SEED_HOLIDAYS));
+    state.cellState={};
+  }
+  state.seedVersion=SEED_VERSION;
+}
+
+function parseISO(iso){const[y,m,d]=iso.split("-").map(Number);return new Date(y,m-1,d);}
+function toISO(dt){return dt.getFullYear()+"-"+String(dt.getMonth()+1).padStart(2,"0")+"-"+String(dt.getDate()).padStart(2,"0");}
+function addDays(iso,n){const d=parseISO(iso);d.setDate(d.getDate()+n);return toISO(d);}
+function mondayOf(iso){const d=parseISO(iso);const off=(d.getDay()+6)%7;d.setDate(d.getDate()-off);return toISO(d);}
+function weekDates(){
+  const out=[];
+  for(let i=0;i<7;i++){
+    const iso=addDays(state.weekStart,i);const d=parseISO(iso);
+    out.push({iso:iso,di:i,label:DOW_S[i],dateLabel:d.getDate()+" "+MON[d.getMonth()]});
+  }
+  return out;
+}
+function timeToMin(t){const[h,m]=t.split(":").map(Number);return h*60+m;}
+
+function docByName(n){return state.doctors.find(d=>d.name===n);}
+function permanentList(){return state.doctors.filter(d=>d.status==="Permanent");}
+function leaveFor(name,dateISO){
+  return (state.leave||[]).find(l=>l.doctor===name&&dateISO>=l.from&&dateISO<=l.to)||null;
+}
+function isOnLeave(name,dateISO){return !!leaveFor(name,dateISO);}
+function holidayFor(facility,dateISO){
+  return (state.holidays||[]).find(h=>h.date===dateISO&&
+    (h.clinics&&h.clinics.length?h.clinics.indexOf(facility)>=0:true))||null;
+}
+function isPlaceholder(name){return /^locum$/i.test(String(name||"").trim());}
+function colorFor(name){
+  if(isPlaceholder(name)) return LOCUM_COLOR;
+  const d=docByName(name);
+  if(!d) return "#fecaca";
+  if(d.status!=="Permanent") return LOCUM_COLOR;
+  if(d.color) return d.color;
+  const idx=permanentList().findIndex(p=>p.name===name);
+  return PALETTE[idx%PALETTE.length];
+}
+
+function curWeek(){
+  if(!state.weeks[state.weekStart]) state.weeks[state.weekStart]={};
+  return state.weeks[state.weekStart];
+}
+function getCell(slotId,di){const a=curWeek()[slotId];return a?a[di]:undefined;}
+function setCell(slotId,di,name){
+  const wk=curWeek();
+  if(!wk[slotId]) wk[slotId]={};
+  if(name) wk[slotId][di]=name; else delete wk[slotId][di];
+  if(Object.keys(wk[slotId]).length===0) delete wk[slotId];
+}
+function getRemark(slotId,di){const r=state.remarks[state.weekStart];return r?r[slotId+"__"+di]:undefined;}
+function setRemark(slotId,di,text){
+  text=(text||"").trim();
+  if(!state.remarks[state.weekStart]) state.remarks[state.weekStart]={};
+  const r=state.remarks[state.weekStart], key=slotId+"__"+di;
+  if(text) r[key]=text; else delete r[key];
+  if(Object.keys(r).length===0) delete state.remarks[state.weekStart];
+}
+function isOpen(slotId,di){
+  const _a=state.weeks[state.weekStart]; if(_a&&_a[slotId]&&_a[slotId][di]!==undefined&&_a[slotId][di]!=="") return true;
+  const cs=state.cellState[state.weekStart];
+  const key=slotId+"__"+di;
+  if(cs&&cs[key]) return cs[key]==="open";
+  return SLOT_BY_ID[slotId].allowedDays.includes(di);
+}
+function setOpen(slotId,di,open){
+  if(!state.cellState[state.weekStart]) state.cellState[state.weekStart]={};
+  const cs=state.cellState[state.weekStart];
+  const key=slotId+"__"+di;
+  const def=SLOT_BY_ID[slotId].allowedDays.includes(di);
+  if(open===def) delete cs[key];
+  else cs[key]=open?"open":"closed";
+}
+
+function getCommitments(name,di,date,excludeSlotId){
+  const out=[];
+  if(isPlaceholder(name)) return out;
+  const wk=curWeek();
+  SLOTS.forEach(s=>{
+    if(s.id===excludeSlotId) return;
+    const a=wk[s.id];
+    if(a&&a[di]===name){
+      out.push({type:"shift",slotId:s.id,label:s.facility+" "+s.shift,
+        start:timeToMin(s.start),end:timeToMin(s.end),region:s.location});
+    }
+  });
+  state.bookings.forEach(b=>{
+    if(b.doctor===name&&b.date===date){
+      out.push({type:"booking",bookingId:b.id,label:b.place+" (booking)",
+        start:timeToMin(b.start),end:timeToMin(b.end),region:b.location});
+    }
+  });
+  return out;
+}
+function travelMin(a,b){
+  if(DATA.travel[a]&&typeof DATA.travel[a][b]==="number") return DATA.travel[a][b];
+  return 0;
+}
+function pairConflict(c1,c2){
+  const e=c1.start<=c2.start?c1:c2;
+  const l=c1.start<=c2.start?c2:c1;
+  const tr=travelMin(e.region,l.region);
+  if(l.start<e.end+tr){
+    return e.region===l.region?"overlapping times":"not enough travel time";
+  }
+  return null;
+}
+
+function validateAll(){
+  const wk=curWeek();
+  const cellIssues={},bookingIssues={},summary=[];
+  const dates=weekDates();
+  SLOTS.forEach(s=>{
+    const a=wk[s.id];if(!a) return;
+    Object.keys(a).forEach(diStr=>{
+      const di=+diStr,name=a[diStr];if(!name) return;
+      if(isPlaceholder(name)) return;
+      const key=s.id+"__"+di;
+      const date=dates[di].iso;
+      const doc=docByName(name);
+      const addIssue=(sev,msg)=>{
+        if(!cellIssues[key]) cellIssues[key]={sev:sev,msgs:[]};
+        if(sev==="err") cellIssues[key].sev="err";
+        cellIssues[key].msgs.push(msg);
+        summary.push({di,sev,text:DOW_S[di]+" · "+s.facility+" "+s.shift+" · "+name+" — "+msg});
+      };
+      const hol=holidayFor(s.facility,date);
+      if(!isOpen(s.id,di)&&!hol) addIssue("err","this slot is closed — open it or clear the doctor");
+      if(!doc){addIssue("err","\""+name+"\" is not in the doctor list");return;}
+      if(isOnLeave(name,date)) addIssue("err",name+" is on leave on this day");
+      if(s.ohdReq&&!doc.ohd) addIssue("err",name+" is not OHD-certified (required at this site)");
+      if(s.locumOnly&&doc.status!=="Locum") addIssue("warn","locum-only site, "+name+" is permanent");
+      if(s.atns&&!(doc.status==="Permanent"&&doc.pool==="Industrial")) addIssue("warn","AT&S needs a permanent Industrial doctor");
+      if(s.pool==="Industrial"&&doc.pool==="GP") addIssue("warn",name+" is a GP-pool doctor at an industrial site");
+      if(s.facility==="Dell1"&&s.shift==="9-12pm"&&di===4&&doc.status!=="Locum") addIssue("warn","Dell1 Friday is locum-only");
+    });
+  });
+  for(let di=0;di<7;di++){
+    const date=dates[di].iso;
+    const names=new Set();
+    SLOTS.forEach(s=>{const a=wk[s.id];if(a&&a[di])names.add(a[di]);});
+    state.bookings.forEach(b=>{if(b.date===date)names.add(b.doctor);});
+    names.forEach(name=>{
+      const coms=getCommitments(name,di,date);
+      for(let i=0;i<coms.length;i++){
+        for(let j=i+1;j<coms.length;j++){
+          const r=pairConflict(coms[i],coms[j]);
+          if(!r) continue;
+          [[coms[i],coms[j]],[coms[j],coms[i]]].forEach(pair=>{
+            const c=pair[0],o=pair[1];
+            if(c.type==="shift"){
+              const key=c.slotId+"__"+di;
+              if(!cellIssues[key]) cellIssues[key]={sev:"err",msgs:[]};
+              cellIssues[key].sev="err";
+              cellIssues[key].msgs.push("clashes with "+o.label+" ("+r+")");
+            }else{
+              if(!bookingIssues[c.bookingId]) bookingIssues[c.bookingId]=[];
+              bookingIssues[c.bookingId].push("clashes with "+o.label);
+            }
+          });
+          summary.push({di,sev:"err",
+            text:DOW_S[di]+" · "+name+" — "+coms[i].label+" clashes with "+coms[j].label+" ("+r+")"});
+        }
+      }
+    });
+  }
+  permanentList().forEach(doc=>{
+    let sat=false,sun=false;
+    SLOTS.forEach(s=>{const a=wk[s.id];if(a){if(a[5]===doc.name)sat=true;if(a[6]===doc.name)sun=true;}});
+    if(sat&&sun) summary.push({di:5,sev:"warn",text:"Weekend · "+doc.name+" — working both Saturday and Sunday (needs one day off)"});
+  });
+  const hrs=computeHours();
+  Object.keys(hrs).forEach(name=>{
+    if(hrs[name].total>45) summary.push({di:0,sev:"warn",text:"Hours · "+name+" — "+hrs[name].total.toFixed(1)+"h this week"});
+  });
+  validation={cellIssues,bookingIssues,summary};
+  return validation;
+}
+function computeHours(){
+  const wk=curWeek();const res={};
+  permanentList().forEach(d=>res[d.name]={days:[0,0,0,0,0,0,0],total:0});
+  SLOTS.forEach(s=>{
+    const a=wk[s.id];if(!a) return;
+    Object.keys(a).forEach(diStr=>{
+      const di=+diStr,name=a[diStr];
+      if(res[name]){res[name].days[di]+=s.hours;res[name].total+=s.hours;}
+    });
+  });
+  return res;
+}
+
+function buildSuggestions(slot,di,date){
+  const cand={label:slot.facility+" "+slot.shift,start:timeToMin(slot.start),
+    end:timeToMin(slot.end),region:slot.location};
+  const hrs=computeHours();
+  const list=state.doctors.map(doc=>{
+    let sev="ok",score=100;
+    const pos=[],neg=[];
+    const coms=getCommitments(doc.name,di,date,slot.id);
+    let clash=null;
+    for(const c of coms){const r=pairConflict(c,cand);if(r){clash={c,r};break;}}
+    if(clash){sev="err";neg.push("busy: "+clash.c.label+" ("+clash.r+")");score-=1000;}
+    if(isOnLeave(doc.name,date)){sev="err";neg.push("on leave");score-=2000;}
+    if(slot.ohdReq&&!doc.ohd){sev="err";neg.push("not OHD-certified");score-=500;}
+    if(slot.locumOnly&&doc.status!=="Locum"){if(sev==="ok")sev="warn";neg.push("site is locum-only");score-=80;}
+    if(slot.facility==="Dell1"&&slot.shift==="9-12pm"&&di===4&&doc.status!=="Locum"){if(sev==="ok")sev="warn";neg.push("Fri is locum-only");score-=60;}
+    if(slot.atns&&!(doc.status==="Permanent"&&doc.pool==="Industrial")){if(sev==="ok")sev="warn";neg.push("AT&S needs permanent Industrial");score-=70;}
+    if(slot.pool==="Industrial"&&doc.pool==="GP"){if(sev==="ok")sev="warn";neg.push("GP-pool doctor at industrial site");score-=50;}
+    if(slot.pool===doc.pool){score+=12;pos.push("pool match");}
+    let sameFac=false,sameRegion=false;
+    coms.forEach(c=>{
+      if(c.label.startsWith(slot.facility+" ")) sameFac=true;
+      if(c.region===slot.location) sameRegion=true;
+    });
+    if(sameFac){score+=26;pos.push("already at "+slot.facility);}
+    else if(sameRegion){score+=14;pos.push("already in "+slot.location);}
+    if(doc.status==="Permanent"&&hrs[doc.name]){
+      const after=hrs[doc.name].total+slot.hours;
+      if(after>45){if(sev==="ok")sev="warn";neg.push("would reach "+after.toFixed(1)+"h");score-=40;}
+      else score-=hrs[doc.name].total*0.3;
+    }
+    if(slot.locumOnly&&doc.status==="Locum"){score+=10;pos.push("locum");}
+    return {doc,sev,score,pos,neg};
+  });
+  list.sort((a,b)=>{
+    const rank={ok:0,warn:1,err:2};
+    if(rank[a.sev]!==rank[b.sev]) return rank[a.sev]-rank[b.sev];
+    return b.score-a.score;
+  });
+  return list;
+}
+
+function render(){
+  validateAll();
+  renderHeader();renderRoster();renderBookingStrip();renderExtraStrips();renderLegend();
+  renderVSum();renderBookings();renderDoctors();renderHours();
+  renderBookingForm();renderWeekState();renderClinics();
+  renderLeave();renderLeaveForm();renderHolidays();renderHolidayForm();
+}
+function renderExtraStrips(){
+  const dates=weekDates();
+  const isos=dates.map(d=>d.iso);
+  let h="";
+  const wkLeave=(state.leave||[]).filter(l=>isos.some(i=>i>=l.from&&i<=l.to));
+  if(wkLeave.length){
+    h+="<b style='font-size:13px'>On leave this week</b>"+
+      "<div style='margin-top:7px;display:flex;flex-wrap:wrap;gap:7px'>";
+    wkLeave.sort((a,b)=>a.from<b.from?-1:1).forEach(l=>{
+      const f=parseISO(l.from),t=parseISO(l.to);
+      h+="<span class='lchip' style='background:#fee2e2;border-color:#fca5a5'><b>"+esc(l.doctor)+
+        "</b> · "+f.getDate()+" "+MON[f.getMonth()]+" – "+t.getDate()+" "+MON[t.getMonth()]+
+        (l.note?" · "+esc(l.note):"")+"</span>";
+    });
+    h+="</div>";
+  }
+  const wkHol=(state.holidays||[]).filter(hh=>isos.indexOf(hh.date)>=0);
+  if(wkHol.length){
+    h+=(h?"<div style='height:9px'></div>":"")+"<b style='font-size:13px'>Public holidays this week</b>"+
+      "<div style='margin-top:7px;display:flex;flex-wrap:wrap;gap:7px'>";
+    wkHol.sort((a,b)=>a.date<b.date?-1:1).forEach(hh=>{
+      const d=parseISO(hh.date);
+      h+="<span class='lchip' style='background:#fef3c7;border-color:#fcd34d'><b>"+esc(hh.name)+
+        "</b> · "+DOW_S[(d.getDay()+6)%7]+" "+d.getDate()+" "+MON[d.getMonth()]+
+        " · "+(hh.clinics?hh.clinics.length:0)+" clinic(s)</span>";
+    });
+    h+="</div>";
+  }
+  const el=document.getElementById("leaveStrip");
+  el.innerHTML=h?"<div class='card' style='padding:11px 14px'>"+h+"</div>":"";
+}
+function renderLeaveForm(){
+  const sel=document.getElementById("lvDoc");
+  const perms=permanentList();
+  if(sel.dataset.n!=perms.length){
+    sel.innerHTML=perms.map(d=>"<option>"+esc(d.name)+"</option>").join("");
+    sel.dataset.n=perms.length;
+  }
+}
+function addLeave(){
+  const doc=document.getElementById("lvDoc").value;
+  const from=document.getElementById("lvFrom").value;
+  const to=document.getElementById("lvTo").value;
+  const note=document.getElementById("lvNote").value.trim();
+  if(!doc||!from||!to){alert("Please choose a doctor and both dates.");return;}
+  if(to<from){alert("The last day off cannot be before the first day off.");return;}
+  state.leave.push({id:Date.now()+""+Math.floor(Math.random()*999),
+    doctor:doc,from:from,to:to,note:note});
+  document.getElementById("lvNote").value="";
+  save();render();
+  alert("Leave saved. "+doc+" is now blocked out on the roster for those days.");
+}
+function renderLeave(){
+  const el=document.getElementById("lvList");
+  if(!state.leave||!state.leave.length){el.innerHTML="<div class='small'>No leave logged yet.</div>";return;}
+  let h="";
+  state.leave.slice().sort((a,b)=>a.from<b.from?-1:1).forEach(l=>{
+    const f=parseISO(l.from),t=parseISO(l.to);
+    h+="<div class='bk'><div class='bd'><b>"+esc(l.doctor)+"</b><br>"+
+      "<span class='small'>"+f.getDate()+" "+MON[f.getMonth()]+" "+f.getFullYear()+
+      "  →  "+t.getDate()+" "+MON[t.getMonth()]+" "+t.getFullYear()+
+      (l.note?" · "+esc(l.note):"")+"</span></div>"+
+      "<button class='btn danger' data-dellv='"+l.id+"'>Delete</button></div>";
+  });
+  el.innerHTML=h;
+  el.querySelectorAll("[data-dellv]").forEach(b=>{
+    b.onclick=()=>{state.leave=state.leave.filter(x=>x.id!=b.dataset.dellv);save();render();};
+  });
+}
+function renderHolidayForm(){
+  const el=document.getElementById("hdClinics");
+  const facs=[];
+  SLOTS.forEach(s=>{if(facs.indexOf(s.facility)<0)facs.push(s.facility);});
+  const byReg={};
+  DATA.regions.forEach(r=>byReg[r]=[]);
+  facs.forEach(f=>{
+    const sl=SLOTS.find(s=>s.facility===f);
+    const r=sl?sl.location:"Other";
+    if(!byReg[r])byReg[r]=[];
+    byReg[r].push(f);
+  });
+  let h="";
+  Object.keys(byReg).forEach(r=>{
+    if(!byReg[r].length) return;
+    h+="<div class='grp'>"+esc(r)+"</div><div style='display:flex;flex-wrap:wrap;gap:5px 16px;margin-bottom:6px'>";
+    byReg[r].forEach(f=>{
+      h+="<label style='font-size:12.5px;font-weight:500;display:flex;gap:5px;align-items:center;cursor:pointer'>"+
+        "<input type='checkbox' class='hd-cl' value='"+esc(f)+"' data-reg='"+esc(r)+"'>"+esc(f)+"</label>";
+    });
+    h+="</div>";
+  });
+  el.innerHTML=h;
+}
+function addHoliday(){
+  const date=document.getElementById("hdDate").value;
+  const name=document.getElementById("hdName").value.trim();
+  if(!date||!name){alert("Please enter the date and the holiday name.");return;}
+  const clinics=[].map.call(document.querySelectorAll(".hd-cl:checked"),x=>x.value);
+  if(!clinics.length){alert("Tick at least one clinic that is closed for this holiday.");return;}
+  state.holidays.push({id:Date.now()+""+Math.floor(Math.random()*999),
+    date:date,name:name,clinics:clinics});
+  document.getElementById("hdName").value="";
+  document.querySelectorAll(".hd-cl").forEach(c=>c.checked=false);
+  save();render();
+  alert("Public holiday saved. The chosen clinics now show PH on "+date+".");
+}
+function renderHolidays(){
+  const el=document.getElementById("hdList");
+  if(!state.holidays||!state.holidays.length){el.innerHTML="<div class='small'>No public holidays set yet.</div>";return;}
+  let h="";
+  state.holidays.slice().sort((a,b)=>a.date<b.date?-1:1).forEach(hh=>{
+    const d=parseISO(hh.date);
+    h+="<div class='bk'><div class='bd'><b>"+esc(hh.name)+"</b> "+
+      "<span class='pill'>"+DOW_S[(d.getDay()+6)%7]+" "+d.getDate()+" "+MON[d.getMonth()]+" "+d.getFullYear()+"</span><br>"+
+      "<span class='small'>"+(hh.clinics?hh.clinics.length:0)+" clinic(s): "+
+      esc((hh.clinics||[]).join(", "))+"</span></div>"+
+      "<button class='btn danger' data-delhd='"+hh.id+"'>Delete</button></div>";
+  });
+  el.innerHTML=h;
+  el.querySelectorAll("[data-delhd]").forEach(b=>{
+    b.onclick=()=>{state.holidays=state.holidays.filter(x=>x.id!=b.dataset.delhd);save();render();};
+  });
+}
+function renderHeader(){
+  const d=parseISO(state.weekStart),e=parseISO(addDays(state.weekStart,6));
+  document.getElementById("wkLabel").textContent=
+    d.getDate()+" "+MON[d.getMonth()]+" – "+e.getDate()+" "+MON[e.getMonth()]+" "+e.getFullYear();
+  document.getElementById("wkPick").value=state.weekStart;
+}
+function renderRoster(){
+  const dates=weekDates();
+  const t=document.getElementById("rosterTable");
+  let h="<thead><tr><th class='fac'>Facility</th><th class='shf'>Shift</th>";
+  dates.forEach(d=>{h+="<th>"+d.label+"<span class='dt'>"+d.dateLabel+"</span></th>";});
+  h+="</tr></thead><tbody>";
+  let prevFac=null;
+  SLOTS.forEach(s=>{
+    const first=s.facility!==prevFac;prevFac=s.facility;
+    h+="<tr class='"+(first?"facfirst":"")+"'>";
+    h+="<td class='fac'>"+(first?esc(s.facility):"")+"</td>";
+    h+="<td class='shf'>"+esc(s.shift)+"</td>";
+    for(let di=0;di<7;di++){
+      const name=getCell(s.id,di);
+      const hol=holidayFor(s.facility,dates[di].iso);
+      if(hol&&!name){
+        h+="<td class='phcell' data-slot='"+esc(s.id)+"' data-di='"+di+"' title='"+
+          esc("Public holiday: "+hol.name)+"'>PH</td>";continue;
+      }
+      if(!isOpen(s.id,di)&&!hol){
+        h+="<td class='closed' data-slot='"+esc(s.id)+"' data-di='"+di+"'>closed</td>";continue;
+      }
+      const iss=validation.cellIssues[s.id+"__"+di];
+      let cls="cell";
+      if(iss) cls+=" "+iss.sev;
+      if(!name) cls+=" empty";
+      let inner;
+      if(name){ inner="<span class='who' style='background:"+colorFor(name)+"'>"+esc(name)+"</span>"; }
+      else { inner="+"; }
+      const rmk=getRemark(s.id,di);
+      if(rmk) inner+="<span class='rmk' title='"+esc(rmk)+"' style='display:inline-block;margin-left:5px;padding:1px 5px;border-radius:4px;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;font-size:10.5px;font-weight:700;vertical-align:middle;white-space:nowrap'>"+esc(rmk)+"</span>";
+      const flag=iss?"<span class='flag'>"+(iss.sev==="err"?"✕":"⚠")+"</span>":"";
+      const tip=iss?" title='"+esc(iss.msgs.join("; "))+"'":"";
+      h+="<td class='"+cls+"' data-slot='"+esc(s.id)+"' data-di='"+di+"'"+tip+">"+inner+flag+"</td>";
+    }
+    h+="</tr>";
+  });
+  h+="</tbody>";
+  t.innerHTML=h;
+  t.querySelectorAll("td[data-slot]").forEach(td=>{
+    td.onclick=()=>openAssign(td.dataset.slot,+td.dataset.di);
+  });
+}
+function renderBookingStrip(){
+  const dates=weekDates();
+  const wkBk=state.bookings.filter(b=>dates.some(d=>d.iso===b.date));
+  const el=document.getElementById("bookingStrip");
+  if(wkBk.length===0){el.innerHTML="";return;}
+  let h="<div class='card' style='padding:11px 14px'><b style='font-size:13px'>Special bookings this week</b><div style='margin-top:7px;display:flex;flex-wrap:wrap;gap:7px'>";
+  wkBk.sort((a,b)=>a.date<b.date?-1:1).forEach(b=>{
+    const di=dates.find(d=>d.iso===b.date);
+    const clash=validation.bookingIssues[b.id];
+    h+="<span class='lchip' style='"+(clash?"background:#fee2e2;border-color:#dc2626":"")+"'>"+
+      "<b>"+esc(b.doctor)+"</b> → "+esc(b.place)+" · "+di.label+" "+b.start+"-"+b.end+
+      (clash?" ⚠":"")+"</span>";
+  });
+  h+="</div></div>";
+  el.innerHTML=h;
+}
+function renderLegend(){
+  const el=document.getElementById("legend");
+  let h="";
+  permanentList().forEach(d=>{
+    h+="<span class='lchip'><span class='sw' style='background:"+colorFor(d.name)+"'></span>"+esc(d.name)+"</span>";
+  });
+  h+="<span class='lchip'><span class='sw' style='background:"+LOCUM_COLOR+"'></span>Locum</span>";
+  el.innerHTML=h;
+}
+function renderVSum(){
+  const el=document.getElementById("vsum");
+  const s=validation.summary;
+  if(s.length===0){el.innerHTML="<div class='allgood'>✓ No conflicts or warnings — this roster looks clean.</div>";return;}
+  const errs=s.filter(x=>x.sev==="err"),warns=s.filter(x=>x.sev==="warn");
+  let h="<div class='card'><h2>Checks — "+errs.length+" conflict"+(errs.length===1?"":"s")+
+    ", "+warns.length+" warning"+(warns.length===1?"":"s")+"</h2><div style='margin-top:8px'>";
+  errs.forEach(x=>{h+="<div class='vrow err'><span class='badge'>FIX</span><span>"+esc(x.text)+"</span></div>";});
+  warns.forEach(x=>{h+="<div class='vrow warn'><span class='badge'>CHECK</span><span>"+esc(x.text)+"</span></div>";});
+  h+="</div></div>";
+  el.innerHTML=h;
+}
+function renderWeekState(){
+  const n=Object.keys(curWeek()).length;
+  document.getElementById("weekState").textContent=
+    n===0?"This week is empty.":n+" of "+SLOTS.length+" rows have entries.";
+}
+
+function openAssign(slotId,di){
+  const slot=SLOT_BY_ID[slotId];
+  if(!slot) return;
+  const dates=weekDates();
+  modalCtx={slot,di,date:dates[di].iso};
+  document.getElementById("mTitle").textContent=slot.facility+" — "+slot.shift;
+  document.getElementById("mSub").textContent=
+    DOW[di]+" "+dates[di].dateLabel+"  ·  "+slot.start+"-"+slot.end+"  ·  "+slot.location+
+    "  ·  "+slot.hours+"h";
+  document.getElementById("mSearch").value="";
+  document.getElementById("mRemark").value=getRemark(slotId,di)||"";
+  refreshModal();
+  document.getElementById("modalBg").classList.add("show");
+  document.getElementById("mSearch").focus();
+}
+function refreshModal(){
+  const {slot,di}=modalCtx;
+  const open=isOpen(slot.id,di);
+  const banner=document.getElementById("mBanner");
+  const tog=document.getElementById("mToggle");
+  const clr=document.getElementById("mClear");
+  if(open){
+    banner.innerHTML="";
+    tog.textContent="Close this slot";
+    tog.className="btn grey";
+    clr.style.display="";
+  }else{
+    banner.innerHTML="<div style='background:#fef3c7;border:1px solid #fcd34d;color:#78350f;"+
+      "padding:8px 11px;border-radius:8px;margin-bottom:9px;font-size:12.5px'>"+
+      "This slot is <b>closed</b> for "+DOW[di]+". Pick a doctor below to open it and assign, "+
+      "or press <b>Open this slot</b>.</div>";
+    tog.textContent="Open this slot";
+    tog.className="btn primary";
+    clr.style.display="none";
+  }
+  const hol=holidayFor(slot.facility,modalCtx.date);
+  if(hol){
+    banner.innerHTML="<div style='background:#fef3c7;border:1px solid #fcd34d;color:#78350f;"+
+      "padding:8px 11px;border-radius:8px;margin-bottom:9px;font-size:12.5px'>"+
+      "<b>Public holiday: "+esc(hol.name)+".</b> This site is normally closed today — "+
+      "assign a doctor only if this company still needs cover.</div>"+banner.innerHTML;
+  }
+  drawSuggestions(document.getElementById("mSearch").value);
+}
+function drawSuggestions(filter){
+  const {slot,di,date}=modalCtx;
+  const list=buildSuggestions(slot,di,date)
+    .filter(x=>x.doc.name.toLowerCase().includes(filter.toLowerCase()));
+  const cur=getCell(slot.id,di);
+  const groups={ok:[],warn:[],err:[]};
+  list.forEach(x=>groups[x.sev].push(x));
+  const labels={ok:"Recommended",warn:"Possible — check the note",err:"Has conflicts"};
+  let h="";
+  ["ok","warn","err"].forEach(g=>{
+    if(groups[g].length===0) return;
+    h+="<div class='grp'>"+labels[g]+"</div>";
+    groups[g].forEach(x=>{
+      const d=x.doc;
+      const reason=x.neg.length?x.neg.join(", "):(x.pos.length?x.pos.join(", "):"available");
+      const ic=g==="ok"?"✓":(g==="warn"?"⚠":"✕");
+      h+="<div class='sg "+g+"' data-name='"+esc(d.name)+"'>"+
+        "<span class='sw' style='width:15px;height:15px;border-radius:4px;display:inline-block;background:"+colorFor(d.name)+"'></span>"+
+        "<div><div class='nm'>"+esc(d.name)+(d.name===cur?" <span class='tag'>current</span>":"")+
+        "<span class='tag'>"+d.status+"</span><span class='tag'>"+d.pool+"</span>"+
+        (d.ohd?"<span class='tag ohd'>OHD</span>":"")+"</div>"+
+        "<div class='rsn' style='color:"+(x.neg.length?"#b45309":"#15803d")+"'>"+esc(reason)+"</div></div>"+
+        "<span class='ic'>"+ic+"</span></div>";
+    });
+  });
+  if(!h) h="<div class='small' style='padding:14px'>No doctor matches that search.</div>";
+  const ml=document.getElementById("mList");
+  ml.innerHTML=h;
+  ml.querySelectorAll(".sg").forEach(row=>{
+    row.onclick=()=>{
+      setOpen(modalCtx.slot.id,modalCtx.di,true);
+      setCell(modalCtx.slot.id,modalCtx.di,row.dataset.name);
+      setRemark(modalCtx.slot.id,modalCtx.di,document.getElementById("mRemark").value);
+      closeModal();save();render();
+    };
+  });
+}
+function closeModal(){document.getElementById("modalBg").classList.remove("show");}
+
+function renderBookingForm(){
+  const dsel=document.getElementById("bkDoc");
+  if(dsel.dataset.n!=state.doctors.length){
+    dsel.innerHTML=state.doctors.map(d=>"<option>"+esc(d.name)+"</option>").join("");
+    dsel.dataset.n=state.doctors.length;
+  }
+  const psel=document.getElementById("bkPlace");
+  psel.innerHTML=state.places.map(p=>"<option>"+esc(p)+"</option>").join("");
+  const lsel=document.getElementById("bkLoc");
+  if(!lsel.dataset.done){
+    lsel.innerHTML=DATA.regions.map(r=>"<option>"+esc(r)+"</option>").join("");
+    lsel.dataset.done="1";
+  }
+  if(!document.getElementById("bkDate").value)
+    document.getElementById("bkDate").value=state.weekStart;
+}
+function renderBookings(){
+  const el=document.getElementById("bkList");
+  if(state.bookings.length===0){el.innerHTML="<div class='small'>No bookings yet.</div>";return;}
+  let h="";
+  state.bookings.slice().sort((a,b)=>a.date<b.date?-1:1).forEach(b=>{
+    const clash=validation.bookingIssues[b.id];
+    const d=parseISO(b.date);
+    h+="<div class='bk"+(clash?" clash":"")+"'>"+
+      "<div class='bd'><b>"+esc(b.doctor)+"</b> → "+esc(b.place)+
+      " <span class='pill'>"+esc(b.location)+"</span><br>"+
+      "<span class='small'>"+DOW_S[(d.getDay()+6)%7]+" "+d.getDate()+" "+MON[d.getMonth()]+" "+d.getFullYear()+
+      " · "+b.start+"-"+b.end+(b.note?" · "+esc(b.note):"")+
+      (clash?" · ⚠ "+esc(clash.join("; ")):"")+"</span></div>"+
+      "<button class='btn danger' data-del='"+b.id+"'>Delete</button></div>";
+  });
+  el.innerHTML=h;
+  el.querySelectorAll("[data-del]").forEach(btn=>{
+    btn.onclick=()=>{
+      state.bookings=state.bookings.filter(x=>x.id!=btn.dataset.del);
+      save();render();
+    };
+  });
+}
+function addBooking(){
+  const doc=document.getElementById("bkDoc").value;
+  const place=document.getElementById("bkPlace").value;
+  const loc=document.getElementById("bkLoc").value;
+  const date=document.getElementById("bkDate").value;
+  const st=document.getElementById("bkStart").value;
+  const en=document.getElementById("bkEnd").value;
+  const note=document.getElementById("bkNote").value.trim();
+  if(!doc||!place||!date||!st||!en){alert("Please fill in doctor, place, date and times.");return;}
+  if(timeToMin(en)<=timeToMin(st)){alert("End time must be after start time.");return;}
+  state.bookings.push({id:Date.now()+""+Math.floor(Math.random()*999),
+    doctor:doc,place:place,location:loc,date:date,start:st,end:en,note:note});
+  document.getElementById("bkNote").value="";
+  save();render();
+  alert("Booking added. It now shows on the roster for that week.");
+}
+
+let docFilter="";
+let docSort={key:null,dir:1};
+function renameDoctor(oldName,newName){
+  Object.keys(state.weeks).forEach(wk=>{
+    const wd=state.weeks[wk];
+    Object.keys(wd).forEach(sid=>{
+      Object.keys(wd[sid]).forEach(di=>{ if(wd[sid][di]===oldName) wd[sid][di]=newName; });
+    });
+  });
+  (state.bookings||[]).forEach(b=>{ if(b.doctor===oldName) b.doctor=newName; });
+  (state.leave||[]).forEach(l=>{ if(l.doctor===oldName) l.doctor=newName; });
+}
+function sortDoctorEntries(entries){
+  const k=docSort.key; if(!k) return entries;
+  const dir=docSort.dir;
+  const rs={Permanent:0,Locum:1}, rp={GP:0,Industrial:1};
+  const byName=(a,b)=>a.d.name.localeCompare(b.d.name,undefined,{sensitivity:"base"});
+  return entries.slice().sort((a,b)=>{
+    let r=0;
+    if(k==="name") r=byName(a,b);
+    else if(k==="status") r=(rs[a.d.status]||0)-(rs[b.d.status]||0)||byName(a,b);
+    else if(k==="pool") r=(rp[a.d.pool]||0)-(rp[b.d.pool]||0)||byName(a,b);
+    else if(k==="ohd") r=((a.d.ohd?0:1)-(b.d.ohd?0:1))||byName(a,b);
+    return r*dir;
+  });
+}
+function sortArrow(k){ return docSort.key===k ? (docSort.dir>0?" ▲":" ▼") : ""; }
+function renderDoctors(){
+  const t=document.getElementById("docTable");
+  const q=(docFilter||"").trim().toLowerCase();
+  let entries=state.doctors.map((d,i)=>({d,i})).filter(e=>!q || e.d.name.toLowerCase().indexOf(q)>=0);
+  const shown=entries.length;
+  entries=sortDoctorEntries(entries);
+  let h="<thead><tr>"+
+    "<th data-sort='name' style='cursor:pointer;user-select:none'>Name"+sortArrow("name")+"</th>"+
+    "<th data-sort='status' style='cursor:pointer;user-select:none'>Status"+sortArrow("status")+"</th>"+
+    "<th data-sort='pool' style='cursor:pointer;user-select:none'>Pool"+sortArrow("pool")+"</th>"+
+    "<th data-sort='ohd' style='cursor:pointer;user-select:none'>OHD"+sortArrow("ohd")+"</th>"+
+    "<th></th></tr></thead><tbody>";
+  entries.forEach(function(e){
+    const d=e.d, i=e.i;
+    const sw = d.status==="Permanent"
+      ? "<input type='color' class='doccolor' data-i='"+i+"' value='"+colorFor(d.name)+"' title='Change this doctor&#39;s colour' style='width:26px;height:22px;padding:0;border:1px solid #cbd5e1;border-radius:5px;vertical-align:-6px;margin-right:6px;cursor:pointer'>"
+      : "<span class='sw' title='Locums share the grey colour' style='display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px;background:"+LOCUM_COLOR+"'></span>";
+    h+="<tr>"+
+      "<td>"+sw+"<input class='docname' data-i='"+i+"' value='"+esc(d.name)+"' title='Edit name' style='padding:5px 7px;border:1px solid #cbd5e1;border-radius:6px;min-width:150px;font-size:14px'></td>"+
+      "<td><select data-i='"+i+"' data-f='status'><option"+(d.status==="Permanent"?" selected":"")+">Permanent</option><option"+(d.status==="Locum"?" selected":"")+">Locum</option></select></td>"+
+      "<td><select data-i='"+i+"' data-f='pool'><option"+(d.pool==="GP"?" selected":"")+">GP</option><option"+(d.pool==="Industrial"?" selected":"")+">Industrial</option></select></td>"+
+      "<td><select data-i='"+i+"' data-f='ohd'><option"+(!d.ohd?" selected":"")+">No</option><option"+(d.ohd?" selected":"")+">Yes</option></select></td>"+
+      "<td><button class='btn danger' data-rm='"+i+"'>Remove</button></td></tr>";
+  });
+  h+="</tbody>";
+  t.innerHTML=h;
+  const cnt=document.getElementById("docCount");
+  if(cnt) cnt.textContent = q ? (shown+" of "+state.doctors.length+" shown") : (state.doctors.length+" doctors");
+  t.querySelectorAll("th[data-sort]").forEach(th=>{
+    th.onclick=()=>{ const k=th.dataset.sort; if(docSort.key===k) docSort.dir*=-1; else {docSort.key=k;docSort.dir=1;} renderDoctors(); };
+  });
+  t.querySelectorAll("input.doccolor").forEach(ci=>{
+    ci.onchange=()=>{ state.doctors[+ci.dataset.i].color=ci.value; save(); render(); };
+  });
+  t.querySelectorAll("select").forEach(sel=>{
+    sel.onchange=()=>{
+      const d=state.doctors[+sel.dataset.i],f=sel.dataset.f;
+      if(f==="ohd") d.ohd=(sel.value==="Yes");else d[f]=sel.value;
+      save();render();
+    };
+  });
+  t.querySelectorAll("input.docname").forEach(inp=>{
+    inp.onchange=()=>{
+      const idx=+inp.dataset.i, d=state.doctors[idx], oldName=d.name, newName=inp.value.trim();
+      if(newName===oldName) return;
+      if(!newName){ alert("Name cannot be empty."); inp.value=oldName; return; }
+      if(state.doctors.some((x,j)=>j!==idx && x.name.toLowerCase()===newName.toLowerCase())){
+        alert('Another doctor is already called "'+newName+'".'); inp.value=oldName; return;
+      }
+      d.name=newName; renameDoctor(oldName,newName); save(); render();
+    };
+    inp.onkeydown=(e)=>{ if(e.key==="Enter") inp.blur(); };
+  });
+  t.querySelectorAll("[data-rm]").forEach(btn=>{
+    btn.onclick=()=>{
+      const d=state.doctors[+btn.dataset.rm];
+      if(confirm("Remove "+d.name+"? Any roster cells with this doctor will keep the name but show as an error."))
+        {state.doctors.splice(+btn.dataset.rm,1);save();render();}
+    };
+  });
+}
+function addDoctor(){
+  const name=document.getElementById("dcName").value.trim();
+  if(!name){alert("Enter a doctor name.");return;}
+  if(docByName(name)){alert("A doctor with that name already exists.");return;}
+  state.doctors.push({name:name,
+    status:document.getElementById("dcStatus").value,
+    pool:document.getElementById("dcPool").value,
+    ohd:document.getElementById("dcOhd").value==="Yes"});
+  document.getElementById("dcName").value="";
+  save();render();
+}
+
+function renderClinicForm(){
+  const lsel=document.getElementById("clLoc");
+  if(!lsel.dataset.done){
+    lsel.innerHTML=DATA.regions.map(r=>"<option>"+esc(r)+"</option>").join("");
+    lsel.dataset.done="1";
+  }
+  const n=+document.getElementById("clCount").value;
+  let h="";
+  for(let i=0;i<n;i++){
+    h+="<div class='formgrid' style='margin-bottom:8px'>"+
+      "<div class='field'><label>Slot "+(i+1)+" name</label>"+
+      "<input type='text' class='clS-label' placeholder='e.g. 8-1pm'></div>"+
+      "<div class='field'><label>From</label><input type='time' class='clS-start'></div>"+
+      "<div class='field'><label>To</label><input type='time' class='clS-end'></div>"+
+      "</div>";
+  }
+  document.getElementById("clSlots").innerHTML=h;
+}
+function addClinic(){
+  const name=document.getElementById("clName").value.trim();
+  const loc=document.getElementById("clLoc").value;
+  const pool=document.getElementById("clPool").value;
+  if(!name){alert("Enter a clinic name.");return;}
+  if(SLOTS.some(s=>s.facility.toLowerCase()===name.toLowerCase())){
+    alert("A clinic called \""+name+"\" already exists.");return;
+  }
+  const labels=[].map.call(document.querySelectorAll(".clS-label"),x=>x.value.trim());
+  const starts=[].map.call(document.querySelectorAll(".clS-start"),x=>x.value);
+  const ends=[].map.call(document.querySelectorAll(".clS-end"),x=>x.value);
+  const newSlots=[];
+  for(let i=0;i<labels.length;i++){
+    if(!labels[i]||!starts[i]||!ends[i]){alert("Fill in the name and both times for every slot.");return;}
+    if(timeToMin(ends[i])<=timeToMin(starts[i])){alert("Slot "+(i+1)+": the end time must be after the start time.");return;}
+    if(labels.indexOf(labels[i])!==i){alert("Each slot needs a different name.");return;}
+    newSlots.push({
+      id:name+"|||"+labels[i],facility:name,shift:labels[i],
+      start:starts[i],end:ends[i],
+      hours:Math.round((timeToMin(ends[i])-timeToMin(starts[i]))/6)/10,
+      location:loc,pool:pool,allowedDays:[0,1,2,3,4,5,6],
+      locumOnly:false,ohdReq:false,atns:false,custom:true
+    });
+  }
+  state.slots=state.slots.concat(newSlots);
+  rebuildSlots();
+  document.getElementById("clName").value="";
+  renderClinicForm();
+  save();render();
+  alert("Clinic \""+name+"\" added — see the bottom of the roster grid.");
+}
+function removeClinic(fac){
+  if(!confirm("Remove the clinic \""+fac+"\"? Its rows will be cleared from every week.")) return;
+  const ids=SLOTS.filter(s=>s.facility===fac).map(s=>s.id);
+  state.slots=state.slots.filter(s=>s.facility!==fac);
+  Object.keys(state.weeks).forEach(wk=>{ids.forEach(id=>{delete state.weeks[wk][id];});});
+  Object.keys(state.cellState).forEach(wk=>{
+    Object.keys(state.cellState[wk]).forEach(k=>{
+      if(ids.some(id=>k.indexOf(id+"__")===0)) delete state.cellState[wk][k];
+    });
+  });
+  state.holidays.forEach(hh=>{if(hh.clinics)hh.clinics=hh.clinics.filter(c=>c!==fac);});
+  rebuildSlots();save();render();
+}
+function renderClinics(){
+  const el=document.getElementById("clList");
+  const facs=[];
+  SLOTS.forEach(s=>{if(facs.indexOf(s.facility)<0)facs.push(s.facility);});
+  if(facs.length===0){el.innerHTML="<div class='small'>No clinics yet.</div>";return;}
+  let h="";
+  facs.forEach(f=>{
+    const slots=SLOTS.filter(s=>s.facility===f);
+    h+="<div class='bk'><div class='bd'><b>"+esc(f)+"</b> "+
+      "<span class='pill'>"+esc(slots[0].location)+"</span> "+
+      "<span class='pill'>"+esc(slots[0].pool)+"</span><br>"+
+      "<span class='small'>"+slots.map(s=>esc(s.shift)+" ("+s.start+"-"+s.end+")").join("  ·  ")+"</span>"+
+      "</div>"+
+      "<button class='btn grey' data-edcl='"+esc(f)+"'>Edit</button>"+
+      "<button class='btn danger' data-rmcl='"+esc(f)+"'>Remove</button></div>";
+  });
+  el.innerHTML=h;
+  el.querySelectorAll("[data-edcl]").forEach(btn=>{
+    btn.onclick=()=>openClinicEditor(btn.dataset.edcl);
+  });
+  el.querySelectorAll("[data-rmcl]").forEach(btn=>{
+    btn.onclick=()=>removeClinic(btn.dataset.rmcl);
+  });
+}
+let ceRows=[];
+let clinicEditCtx=null;
+function openClinicEditor(fac){
+  const slots=SLOTS.filter(s=>s.facility===fac);
+  if(!slots.length) return;
+  clinicEditCtx={origFacility:fac};
+  document.getElementById("ceTitle").textContent="Edit clinic — "+fac;
+  document.getElementById("ceName").value=fac;
+  document.getElementById("ceLoc").innerHTML=DATA.regions.map(r=>
+    "<option"+(r===slots[0].location?" selected":"")+">"+esc(r)+"</option>").join("");
+  document.getElementById("cePool").value=slots[0].pool;
+  ceRows=slots.map(s=>({origId:s.id,label:s.shift,start:s.start,end:s.end,
+    ohdReq:!!s.ohdReq,locumOnly:!!s.locumOnly,atns:!!s.atns,
+    allowedDays:(s.allowedDays||[0,1,2,3,4,5,6]).slice()}));
+  renderCeRows();
+  document.getElementById("clinicBg").classList.add("show");
+}
+function renderCeRows(){
+  let h="";
+  ceRows.forEach((r,i)=>{
+    h+="<div class='formgrid' style='margin-bottom:9px;border:1px solid var(--line);"+
+      "border-radius:9px;padding:10px'>"+
+      "<div class='field'><label>Shift name</label><input type='text' class='ce-label' value='"+
+        esc(r.label)+"' placeholder='e.g. 8-1pm'></div>"+
+      "<div class='field'><label>From</label><input type='time' class='ce-start' value='"+esc(r.start)+"'></div>"+
+      "<div class='field'><label>To</label><input type='time' class='ce-end' value='"+esc(r.end)+"'></div>"+
+      "<div class='field'><label>OHD required</label><select class='ce-ohd'><option"+
+        (!r.ohdReq?" selected":"")+">No</option><option"+(r.ohdReq?" selected":"")+">Yes</option></select></div>"+
+      "<div class='field'><label>Locum only</label><select class='ce-loc'><option"+
+        (!r.locumOnly?" selected":"")+">No</option><option"+(r.locumOnly?" selected":"")+">Yes</option></select></div>"+
+      "<button class='btn danger ce-rm' data-i='"+i+"'>Remove shift</button>"+
+      "</div>";
+  });
+  document.getElementById("ceSlots").innerHTML=h;
+  document.querySelectorAll("#ceSlots .ce-rm").forEach(b=>{
+    b.onclick=()=>{syncCeRows();ceRows.splice(+b.dataset.i,1);renderCeRows();};
+  });
+}
+function syncCeRows(){
+  const labels=document.querySelectorAll("#ceSlots .ce-label");
+  const starts=document.querySelectorAll("#ceSlots .ce-start");
+  const ends=document.querySelectorAll("#ceSlots .ce-end");
+  const ohds=document.querySelectorAll("#ceSlots .ce-ohd");
+  const locs=document.querySelectorAll("#ceSlots .ce-loc");
+  ceRows.forEach((r,i)=>{
+    if(labels[i]){
+      r.label=labels[i].value.trim();r.start=starts[i].value;r.end=ends[i].value;
+      r.ohdReq=ohds[i].value==="Yes";r.locumOnly=locs[i].value==="Yes";
+    }
+  });
+}
+function saveClinicEditor(){
+  if(!clinicEditCtx) return;
+  syncCeRows();
+  const newName=document.getElementById("ceName").value.trim();
+  const loc=document.getElementById("ceLoc").value;
+  const pool=document.getElementById("cePool").value;
+  const oldFac=clinicEditCtx.origFacility;
+  if(!newName){alert("Enter a clinic name.");return;}
+  if(newName.toLowerCase()!==oldFac.toLowerCase()&&
+     SLOTS.some(s=>s.facility.toLowerCase()===newName.toLowerCase())){
+    alert("A clinic called \""+newName+"\" already exists.");return;
+  }
+  if(ceRows.length===0){alert("A clinic needs at least one shift.");return;}
+  for(let i=0;i<ceRows.length;i++){
+    const r=ceRows[i];
+    if(!r.label||!r.start||!r.end){alert("Fill in the name and both times for every shift.");return;}
+    if(timeToMin(r.end)<=timeToMin(r.start)){alert("Shift "+(i+1)+": the end time must be after the start time.");return;}
+    if(ceRows.findIndex(x=>x.label===r.label)!==i){alert("Each shift needs a different name.");return;}
+  }
+  const newSlots=ceRows.map(r=>({
+    id:newName+"|||"+r.label,facility:newName,shift:r.label,
+    start:r.start,end:r.end,
+    hours:Math.round((timeToMin(r.end)-timeToMin(r.start))/6)/10,
+    location:loc,pool:pool,
+    allowedDays:r.allowedDays?r.allowedDays.slice():[0,1,2,3,4,5,6],
+    locumOnly:!!r.locumOnly,ohdReq:!!r.ohdReq,atns:!!r.atns,custom:true
+  }));
+  const remap={};
+  ceRows.forEach((r,i)=>{if(r.origId) remap[r.origId]=newSlots[i].id;});
+  const oldIds=SLOTS.filter(s=>s.facility===oldFac).map(s=>s.id);
+  Object.keys(state.weeks).forEach(wk=>{
+    const w=state.weeks[wk];
+    oldIds.forEach(oid=>{
+      if(!w[oid]) return;
+      if(remap[oid]&&remap[oid]!==oid){w[remap[oid]]=w[oid];delete w[oid];}
+      else if(!remap[oid]){delete w[oid];}
+    });
+  });
+  Object.keys(state.cellState).forEach(wk=>{
+    const cs=state.cellState[wk];
+    Object.keys(cs).forEach(k=>{
+      oldIds.forEach(oid=>{
+        if(k.indexOf(oid+"__")===0){
+          const di=k.slice(oid.length+2);
+          if(remap[oid]&&remap[oid]!==oid){cs[remap[oid]+"__"+di]=cs[k];delete cs[k];}
+          else if(!remap[oid]){delete cs[k];}
+        }
+      });
+    });
+  });
+  if(newName!==oldFac){
+    state.holidays.forEach(hh=>{
+      if(hh.clinics) hh.clinics=hh.clinics.map(c=>c===oldFac?newName:c);
+    });
+  }
+  let idx=state.slots.findIndex(s=>s.facility===oldFac);
+  if(idx<0) idx=state.slots.length;
+  state.slots=state.slots.filter(s=>s.facility!==oldFac);
+  state.slots.splice(idx,0,...newSlots);
+  rebuildSlots();
+  document.getElementById("clinicBg").classList.remove("show");
+  clinicEditCtx=null;
+  save();render();
+  alert("Clinic saved.");
+}
+
+let hoursSort={key:null,dir:1};
+function renderHours(){
+  const hrs=computeHours();
+  const t=document.getElementById("hoursTable");
+  let entries=permanentList().map(d=>({d,r:hrs[d.name]}));
+  if(hoursSort.key==="name") entries.sort((a,b)=>a.d.name.localeCompare(b.d.name,undefined,{sensitivity:"base"})*hoursSort.dir);
+  else if(hoursSort.key==="total") entries.sort((a,b)=>(a.r.total-b.r.total)*hoursSort.dir);
+  const arr=(k)=>hoursSort.key===k?(hoursSort.dir>0?" ▲":" ▼"):"";
+  let h="<thead><tr><th data-hsort='name' style='cursor:pointer;user-select:none'>Doctor"+arr("name")+"</th>";
+  DOW_S.forEach(d=>h+="<th>"+d+"</th>");
+  h+="<th data-hsort='total' style='cursor:pointer;user-select:none' title='Sort by total hours'>Total"+arr("total")+"</th></tr></thead><tbody>";
+  entries.forEach(function(e){
+    const d=e.d, r=e.r;
+    h+="<tr><td><span class='sw' style='display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px;background:"+colorFor(d.name)+"'></span>"+esc(d.name)+"</td>";
+    r.days.forEach(v=>h+="<td>"+(v?v.toFixed(1):"–")+"</td>");
+    let cls="";
+    if(r.total>45) cls="hr-err";else if(r.total>=40) cls="hr-warn";
+    h+="<td class='"+cls+"'>"+r.total.toFixed(1)+"h</td></tr>";
+  });
+  h+="</tbody>";
+  t.innerHTML=h;
+  t.querySelectorAll("th[data-hsort]").forEach(th=>{
+    th.onclick=()=>{ const k=th.dataset.hsort; if(hoursSort.key===k) hoursSort.dir*=-1; else {hoursSort.key=k;hoursSort.dir=1;} renderHours(); };
+  });
+}
+
+function exportImage(kind){
+  const d=parseISO(state.weekStart),e=parseISO(addDays(state.weekStart,6));
+  const title="Doctor Roster   "+d.getDate()+" "+MON[d.getMonth()]+
+    " – "+e.getDate()+" "+MON[e.getMonth()]+" "+e.getFullYear();
+  const tbl=document.getElementById("rosterTable").cloneNode(true);
+  tbl.querySelectorAll(".flag").forEach(f=>f.remove());
+  tbl.querySelectorAll("td.cell.empty").forEach(c=>{c.textContent="";});
+  tbl.querySelectorAll("td.closed").forEach(c=>{c.textContent="";});
+  tbl.querySelectorAll("th,td").forEach(c=>{c.style.position="static";});
+  const wrap=document.createElement("div");
+  wrap.id="expRoot";
+  wrap.style.cssText="position:fixed;left:-99999px;top:0;padding:14px;font-family:inherit;";
+  const hd=document.createElement("div");
+  hd.style.cssText="font-size:15px;font-weight:700;color:#0b5a54;margin-bottom:9px;";
+  hd.textContent=title;
+  wrap.appendChild(hd);wrap.appendChild(tbl);
+  document.body.appendChild(wrap);
+  html2canvas(wrap,{scale:3,backgroundColor:"#ffffff"}).then(canvas=>{
+    document.body.removeChild(wrap);
+    const fn="roster_"+state.weekStart;
+    if(kind==="png"){
+      const a=document.createElement("a");
+      a.download=fn+".png";a.href=canvas.toDataURL("image/png");a.click();
+    }else{
+      const {jsPDF}=window.jspdf;
+      const w=canvas.width/3,ht=canvas.height/3;
+      const pdf=new jsPDF({orientation:w>ht?"landscape":"portrait",unit:"pt",format:[w,ht]});
+      pdf.addImage(canvas.toDataURL("image/jpeg",0.96),"JPEG",0,0,w,ht);
+      pdf.save(fn+".pdf");
+    }
+  }).catch(err=>{
+    if(wrap.parentNode) document.body.removeChild(wrap);
+    alert("Export needs an internet connection the first time (to load the export tools). Please check your connection and try again.");
+  });
+}
+
+function exportJson(){
+  const blob=new Blob([JSON.stringify(state,null,1)],{type:"application/json"});
+  const a=document.createElement("a");
+  a.download="roster_backup_"+toISO(new Date())+".json";
+  a.href=URL.createObjectURL(blob);a.click();
+}
+function importJson(file){
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const s=JSON.parse(r.result);
+      if(!s.weeks||!s.doctors) throw 0;
+      state.weekStart=s.weekStart||state.weekStart;
+      state.doctors=s.doctors;state.weeks=s.weeks;
+      state.cellState=s.cellState||{};
+      state.remarks=s.remarks||{};
+      state.bookings=s.bookings||[];state.places=s.places||["Enovix"];
+      state.customSlots=s.customSlots||[];
+      state.slots=s.slots||null;
+      state.leave=s.leave||[];
+      state.holidays=s.holidays||[];
+      state.seedVersion=s.seedVersion||0;
+      rebuildAfterLoad();
+      rebuildSlots();
+      save();render();
+      document.getElementById("dataBg").classList.remove("show");
+      alert("Backup restored.");
+    }catch(e){alert("That file could not be read as a roster backup.");}
+  };
+  r.readAsText(file);
+}
+
+function copyLastWeek(){
+  const prev=addDays(state.weekStart,-7);
+  const src=state.weeks[prev];
+  if(!src||Object.keys(src).length===0){
+    alert("There is nothing saved for the previous week ("+prev+") to copy.");return;
+  }
+  if(Object.keys(curWeek()).length>0&&
+     !confirm("This week already has entries. Replace them with last week's roster?")) return;
+  state.weeks[state.weekStart]=JSON.parse(JSON.stringify(src));
+  if(state.cellState[prev])
+    state.cellState[state.weekStart]=JSON.parse(JSON.stringify(state.cellState[prev]));
+  if(state.remarks[prev])
+    state.remarks[state.weekStart]=JSON.parse(JSON.stringify(state.remarks[prev]));
+  save();render();
+}
+function clearWeek(){
+  if(Object.keys(curWeek()).length===0) return;
+  if(confirm("Clear every assignment for this week? This cannot be undone."))
+    {state.weeks[state.weekStart]={};delete state.remarks[state.weekStart];save();render();}
+}
+
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));}
+function switchWeek(iso){
+  state.weekStart=mondayOf(iso);
+  curWeek();save();render();
+}
+
+// ---- 3-way merge (base / local / server) so concurrent edits don't clobber ----
+(function (root) {
+  function isObj(x){ return x && typeof x==="object" && !Array.isArray(x); }
+  function clone(x){ return x===undefined?undefined:JSON.parse(JSON.stringify(x)); }
+  function deepEqual(a,b){
+    if(a===b) return true;
+    if(a==null||b==null) return a===b;
+    if(typeof a!==typeof b) return false;
+    if(Array.isArray(a)||Array.isArray(b)){
+      if(!Array.isArray(a)||!Array.isArray(b)||a.length!==b.length) return false;
+      for(let i=0;i<a.length;i++) if(!deepEqual(a[i],b[i])) return false;
+      return true;
+    }
+    if(typeof a==="object"){
+      const ka=Object.keys(a),kb=Object.keys(b);
+      if(ka.length!==kb.length) return false;
+      for(const k of ka){ if(!Object.prototype.hasOwnProperty.call(b,k)) return false; if(!deepEqual(a[k],b[k])) return false; }
+      return true;
+    }
+    return false;
+  }
+  function itemKey(x){ if(x&&typeof x==="object"){ if("id" in x) return "id:"+x.id; if("name" in x) return "name:"+x.name; return "j:"+JSON.stringify(x); } return "s:"+String(x); }
+  function toMap(arr){ const m={},order=[]; (arr||[]).forEach(function(x){ const k=itemKey(x); if(!(k in m)) order.push(k); m[k]=x; }); return {m:m,order:order}; }
+  function mergeArray(base,local,server){
+    const B=toMap(base),L=toMap(local),S=toMap(server);
+    const merged=merge3(B.m,L.m,S.m);
+    const out=[],seen={};
+    function push(k){ if(k in merged && !seen[k]){ out.push(merged[k]); seen[k]=1; } }
+    S.order.forEach(push); L.order.forEach(push); Object.keys(merged).forEach(push);
+    return out;
+  }
+  function merge3(base,local,server){
+    if(deepEqual(local,server)) return clone(local);
+    if(deepEqual(base,local)) return clone(server);
+    if(deepEqual(base,server)) return clone(local);
+    if(isObj(local)&&isObj(server)){
+      const b=isObj(base)?base:{}; const out={}; const keys={};
+      Object.keys(b).forEach(function(k){keys[k]=1;});
+      Object.keys(local).forEach(function(k){keys[k]=1;});
+      Object.keys(server).forEach(function(k){keys[k]=1;});
+      Object.keys(keys).forEach(function(k){
+        const inB=Object.prototype.hasOwnProperty.call(b,k);
+        const inL=Object.prototype.hasOwnProperty.call(local,k);
+        const inS=Object.prototype.hasOwnProperty.call(server,k);
+        if(inL&&inS){ out[k]=merge3(inB?b[k]:undefined,local[k],server[k]); }
+        else if(inL&&!inS){ if(inB&&deepEqual(b[k],local[k])){} else out[k]=clone(local[k]); }
+        else if(!inL&&inS){ if(inB&&deepEqual(b[k],server[k])){} else out[k]=clone(server[k]); }
+      });
+      return out;
+    }
+    if(Array.isArray(local)&&Array.isArray(server)) return mergeArray(Array.isArray(base)?base:[],local,server);
+    return clone(local);
+  }
+  root.RosterMerge={merge3:merge3,deepEqual:deepEqual};
+})(typeof self!=="undefined"?self:this);
+
+// ---- Sync controller ----
+const Sync = {
+  enabled:false, code:"", version:0, base:null, connected:false,
+  pushT:null, pollT:null, inflight:false, pending:false,
+  api(){ return SYNC_URL.replace(/\/+$/,"")+"/state"; },
+  el(){ return document.getElementById("syncNote"); },
+  setStatus(t,c){ const e=this.el(); if(e){ e.textContent=t; e.style.color=c||""; } },
+  headers(){ return {"Content-Type":"application/json","X-Roster-Code":this.code||""}; },
+  payload(){ const o={}; SYNC_FIELDS.forEach(function(f){ o[f]=state[f]; }); return JSON.parse(JSON.stringify(o)); },
+  applyPayload(p){ if(!p) return; SYNC_FIELDS.forEach(function(f){ if(p[f]!==undefined) state[f]=p[f]; }); rebuildSlots(); },
+  saveLocal(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){} },
+  wireClick(){ const e=this.el(); if(e&&!e.__wired){ e.__wired=true; e.style.cursor="pointer"; e.title="Click to re-enter the access code / reconnect"; const self=this; e.onclick=function(){ self.promptCode(true); if(self.code) self.connect(); }; } },
+  promptCode(force){ const c=window.prompt("Enter the roster access code (shared with your team):", force?"":(this.code||"")); if(c&&c.trim()){ this.code=c.trim(); localStorage.setItem("rosterAccessCode", this.code); } },
+  async init(){
+    if(!SYNC_URL){ this.setStatus("Local only","#94a3b8"); return; }
+    this.wireClick();
+    this.enabled=true;
+    this.code=localStorage.getItem("rosterAccessCode")||"";
+    if(!this.code){ this.promptCode(false); }
+    if(!this.code){ this.setStatus("🔒 Enter code","#b45309"); return; }
+    await this.connect();
+  },
+  async connect(){
+    if(!SYNC_URL) return;
+    this.setStatus("Connecting…","#64748b");
+    try{
+      const r=await fetch(this.api(),{headers:this.headers()});
+      if(r.status===401){ this.connected=false; this.code=""; localStorage.removeItem("rosterAccessCode"); this.setStatus("🔒 Wrong code — click","#dc2626"); return; }
+      if(!r.ok) throw new Error("http "+r.status);
+      const data=await r.json();
+      if(data.state==null){
+        this.version=data.version||0; this.base=this.payload();
+        const ok=await this.push(true);
+        if(ok){ this.connected=true; this.setStatus("Synced ✓","#15803d"); this.startPoll(); }
+      }else{
+        this.version=data.version||0; this.applyPayload(data.state);
+        this.base=JSON.parse(JSON.stringify(data.state));
+        this.connected=true; this.saveLocal(); render();
+        this.setStatus("Synced ✓","#15803d"); this.startPoll();
+      }
+    }catch(e){
+      this.connected=false; this.setStatus("Offline — retrying","#b45309");
+      const self=this; setTimeout(function(){ if(self.code) self.connect(); },5000);
+    }
+  },
+  scheduleSave(){ if(!this.enabled||!this.connected) return; clearTimeout(this.pushT); const self=this; this.pushT=setTimeout(function(){ self.push(); },900); },
+  async push(initial){
+    if(!this.connected&&!initial) return false;
+    if(this.inflight){ this.pending=true; return false; }
+    this.inflight=true; if(!initial) this.setStatus("Saving…","#64748b");
+    let ok=false;
+    try{
+      const snap=this.payload();
+      const r=await fetch(this.api(),{method:"PUT",headers:this.headers(),body:JSON.stringify({baseVersion:this.version,state:snap})});
+      if(r.status===401){ this.connected=false; this.code=""; localStorage.removeItem("rosterAccessCode"); this.setStatus("🔒 Wrong code — click","#dc2626"); }
+      else if(r.status===409){
+        const data=await r.json(); this.mergeIn(data.state,data.version); this.inflight=false; return await this.push(initial);
+      }else if(r.ok){
+        const data=await r.json(); this.version=data.version; this.base=snap; ok=true; if(!initial) this.setStatus("Synced ✓","#15803d");
+      }else throw new Error("http "+r.status);
+    }catch(e){
+      this.setStatus("Offline — retrying","#b45309");
+      const self=this; setTimeout(function(){ if(self.connected||self.code) self.push(); },4000);
+    }
+    this.inflight=false;
+    if(this.pending){ this.pending=false; this.scheduleSave(); }
+    return ok;
+  },
+  mergeIn(serverState,serverVersion){
+    const merged=RosterMerge.merge3(this.base||{}, this.payload(), serverState||{});
+    this.applyPayload(merged);
+    this.base=serverState?JSON.parse(JSON.stringify(serverState)):{};
+    this.version=serverVersion||0; this.saveLocal(); render();
+  },
+  startPoll(){ clearInterval(this.pollT); const self=this; this.pollT=setInterval(function(){ self.poll(); },8000); },
+  async poll(){
+    if(!this.connected||this.inflight||document.hidden) return;
+    try{
+      const r=await fetch(this.api(),{headers:this.headers()});
+      if(!r.ok) return;
+      const data=await r.json();
+      if((data.version||0)>this.version){
+        this.mergeIn(data.state,data.version);
+        if(!RosterMerge.deepEqual(this.payload(),this.base)) this.scheduleSave();
+        this.setStatus("Synced ✓","#15803d");
+      }
+    }catch(e){}
+  }
+};
+
+function init(){
+  load();
+  rebuildSlots();
+  state.weekStart=mondayOf(state.weekStart);
+  document.querySelectorAll(".tabbtn").forEach(b=>{
+    b.onclick=()=>{
+      document.querySelectorAll(".tabbtn").forEach(x=>x.classList.remove("active"));
+      document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+      b.classList.add("active");
+      document.getElementById("tab-"+b.dataset.tab).classList.add("active");
+    };
+  });
+  document.getElementById("wkPrev").onclick=()=>switchWeek(addDays(state.weekStart,-7));
+  document.getElementById("wkNext").onclick=()=>switchWeek(addDays(state.weekStart,7));
+  document.getElementById("wkPick").onchange=e=>{if(e.target.value)switchWeek(e.target.value);};
+  document.getElementById("btnPDF").onclick=()=>exportImage("pdf");
+  document.getElementById("btnPNG").onclick=()=>exportImage("png");
+  document.getElementById("mCancel").onclick=closeModal;
+  document.getElementById("mSaveRemark").onclick=()=>{
+    if(!modalCtx) return;
+    setRemark(modalCtx.slot.id,modalCtx.di,document.getElementById("mRemark").value);
+    closeModal();save();render();
+  };
+  document.getElementById("mRemark").onkeydown=e=>{if(e.key==="Enter")document.getElementById("mSaveRemark").click();};
+  document.getElementById("modalBg").onclick=e=>{if(e.target.id==="modalBg")closeModal();};
+  document.getElementById("mClear").onclick=()=>{
+    if(modalCtx){setCell(modalCtx.slot.id,modalCtx.di,null);setRemark(modalCtx.slot.id,modalCtx.di,null);closeModal();save();render();}
+  };
+  document.getElementById("mToggle").onclick=()=>{
+    if(!modalCtx) return;
+    const {slot,di}=modalCtx;
+    if(isOpen(slot.id,di)){
+      setOpen(slot.id,di,false);
+      setCell(slot.id,di,null);
+      setRemark(slot.id,di,null);
+      closeModal();save();render();
+    }else{
+      setOpen(slot.id,di,true);
+      save();render();refreshModal();
+    }
+  };
+  document.getElementById("mSearch").oninput=e=>drawSuggestions(e.target.value);
+  document.getElementById("bkAdd").onclick=addBooking;
+  document.getElementById("bkNewPlace").onclick=e=>{
+    e.preventDefault();
+    const p=prompt("Name of the new place (e.g. Enovix):");
+    if(p&&p.trim()){
+      if(!state.places.includes(p.trim())) state.places.push(p.trim());
+      save();renderBookingForm();
+      document.getElementById("bkPlace").value=p.trim();
+    }
+  };
+  document.getElementById("dcAdd").onclick=addDoctor;
+  document.getElementById("docSearch").oninput=(e)=>{docFilter=e.target.value;renderDoctors();};
+  document.getElementById("clAdd").onclick=addClinic;
+  document.getElementById("clCount").onchange=renderClinicForm;
+  renderClinicForm();
+  document.getElementById("lvAdd").onclick=addLeave;
+  document.getElementById("hdAdd").onclick=addHoliday;
+  document.getElementById("hdAll").onclick=()=>document.querySelectorAll(".hd-cl").forEach(c=>c.checked=true);
+  document.getElementById("hdNone").onclick=()=>document.querySelectorAll(".hd-cl").forEach(c=>c.checked=false);
+  document.querySelectorAll("[data-hdreg]").forEach(btn=>{
+    btn.onclick=()=>document.querySelectorAll(".hd-cl").forEach(c=>{
+      if(c.dataset.reg===btn.dataset.hdreg) c.checked=true;
+    });
+  });
+  document.getElementById("ceAddSlot").onclick=()=>{
+    syncCeRows();
+    ceRows.push({label:"",start:"",end:"",ohdReq:false,locumOnly:false,atns:false,
+      allowedDays:[0,1,2,3,4,5,6]});
+    renderCeRows();
+  };
+  document.getElementById("ceSave").onclick=saveClinicEditor;
+  document.getElementById("ceCancel").onclick=()=>{
+    document.getElementById("clinicBg").classList.remove("show");clinicEditCtx=null;
+  };
+  document.getElementById("clinicBg").onclick=e=>{
+    if(e.target.id==="clinicBg"){e.currentTarget.classList.remove("show");clinicEditCtx=null;}
+  };
+  document.getElementById("btnData").onclick=()=>document.getElementById("dataBg").classList.add("show");
+  document.getElementById("dataCancel").onclick=()=>document.getElementById("dataBg").classList.remove("show");
+  document.getElementById("dataBg").onclick=e=>{if(e.target.id==="dataBg")e.currentTarget.classList.remove("show");};
+  document.getElementById("expJson").onclick=exportJson;
+  document.getElementById("impJson").onclick=()=>document.getElementById("impFile").click();
+  document.getElementById("impFile").onchange=e=>{if(e.target.files[0])importJson(e.target.files[0]);};
+  document.getElementById("btnCopyWeek").onclick=copyLastWeek;
+  document.getElementById("btnClearWeek").onclick=clearWeek;
+  render();
+  try{ Sync.init(); }catch(e){ console.error("sync init",e); }
+}
+document.addEventListener("DOMContentLoaded",init);
+</script>
+</body>
+</html>
