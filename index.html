@@ -323,7 +323,9 @@
   <div class="tab" id="tab-hours">
     <div class="card">
       <h2>Weekly hours &mdash; permanent doctors</h2>
-      <div class="desc">Standard week is 45 hours.
+      <div class="desc">Standard week is 45 hours. Clinic shifts and special bookings both count
+        towards these totals; an <b style="color:#b45309">*</b> marks a day that includes booking
+        time &mdash; hover it to see how much.
         <span style="background:var(--warn-bg);padding:1px 6px;border-radius:4px">Amber</span> = 40&ndash;45h,
         <span style="background:var(--err-bg);padding:1px 6px;border-radius:4px">red</span> = over 45h.</div>
       <table class="data" id="hoursTable"></table>
@@ -364,7 +366,9 @@
         and the 45-hour limit.</p>
       <h3>5. Special bookings</h3>
       <p>If a doctor has an outside commitment (not a roster site), add it on the <b>Special Bookings</b>
-        tab. The tool will then treat that doctor as busy at that time and warn you of any clash.</p>
+        tab. The tool will then treat that doctor as busy at that time and warn you of any clash.
+        Booking time also counts towards a permanent doctor's weekly hours, so the <b>Hours</b> tab
+        and the 45-hour checks reflect everything they are doing that week, not just clinic shifts.</p>
       <h3>6. Export</h3>
       <p>Press <b>Export PDF</b> or <b>Export PNG</b> at the top to save the finished roster as a
         compact, phone-friendly image &mdash; no need to screenshot.</p>
@@ -803,15 +807,36 @@ function validateAll(){
   validation={cellIssues,bookingIssues,summary};
   return validation;
 }
+// Hours worked on a special booking, to one decimal place, the same way a
+// clinic slot works its hours out.
+function bookingHours(b){
+  const mins=timeToMin(b.end)-timeToMin(b.start);
+  return mins>0?Math.round(mins/6)/10:0;
+}
 function computeHours(){
   const wk=curWeek();const res={};
-  permanentList().forEach(d=>res[d.name]={days:[0,0,0,0,0,0,0],total:0});
+  permanentList().forEach(d=>res[d.name]={days:[0,0,0,0,0,0,0],total:0,
+    bk:[0,0,0,0,0,0,0],bkTotal:0});
   SLOTS.forEach(s=>{
     const a=wk[s.id];if(!a) return;
     Object.keys(a).forEach(diStr=>{
       const di=+diStr,name=a[diStr];
       if(res[name]){res[name].days[di]+=s.hours;res[name].total+=s.hours;}
     });
+  });
+  // A special booking is real working time, so it counts towards the week
+  // just like a clinic shift. Tracked separately as well so the hours table
+  // can show how much of a day came from bookings.
+  const isos=weekDates().map(d=>d.iso);
+  (state.bookings||[]).forEach(b=>{
+    const di=isos.indexOf(b.date);
+    if(di<0) return;
+    const r=res[b.doctor];
+    if(!r) return;
+    const hrs=bookingHours(b);
+    if(!hrs) return;
+    r.days[di]+=hrs;r.total+=hrs;
+    r.bk[di]+=hrs;r.bkTotal+=hrs;
   });
   return res;
 }
@@ -1624,10 +1649,16 @@ function renderHours(){
   entries.forEach(function(e){
     const d=e.d, r=e.r;
     h+="<tr><td><span class='sw' style='display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px;background:"+colorFor(d.name)+"'></span>"+esc(d.name)+"</td>";
-    r.days.forEach(v=>h+="<td>"+(v?v.toFixed(1):"–")+"</td>");
+    r.days.forEach(function(v,i){
+      const bk=r.bk[i];
+      const tip=bk?" title='"+esc(v.toFixed(1)+"h — includes "+bk.toFixed(1)+"h of special bookings")+"'":"";
+      const star=bk?"<span style='color:#b45309;font-weight:800'>*</span>":"";
+      h+="<td"+tip+">"+(v?v.toFixed(1)+star:"–")+"</td>";
+    });
     let cls="";
     if(r.total>45) cls="hr-err";else if(r.total>=40) cls="hr-warn";
-    h+="<td class='"+cls+"'>"+r.total.toFixed(1)+"h</td></tr>";
+    const ttip=r.bkTotal?" title='"+esc("includes "+r.bkTotal.toFixed(1)+"h of special bookings")+"'":"";
+    h+="<td class='"+cls+"'"+ttip+">"+r.total.toFixed(1)+"h</td></tr>";
   });
   h+="</tbody>";
   t.innerHTML=h;
