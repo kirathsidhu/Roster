@@ -1,0 +1,7 @@
+# This repo publishes ONE file to GitHub Pages: index.html
+# Everything else in this folder stays local and is never pushed --
+# backups, working notes, and roster data exports (which contain real
+# doctor names and assignments). The GitHub repo is public.
+*
+!index.html
+!.gitignore

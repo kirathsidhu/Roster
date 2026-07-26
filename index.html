@@ -121,6 +121,12 @@
   .sg.ok{border-left-color:var(--ok);} .sg.ok .ic{color:var(--ok);}
   .sg.warn{border-left-color:var(--warn);} .sg.warn .ic{color:var(--warn);}
   .sg.err{border-left-color:var(--err);} .sg.err .ic{color:var(--err);}
+  .addnew{display:block;width:100%;padding:9px;margin-top:4px;background:#f8fafc;
+    border:1px dashed var(--line);border-radius:9px;color:var(--teal-d);
+    font-weight:700;font-size:12.5px;text-align:center;}
+  .addnew:hover{background:#eef7f6;border-color:var(--teal);}
+  #mAddBox{border:1px solid var(--teal);background:#f4faf9;border-radius:10px;
+    padding:11px;margin:0 0 10px;}
   .tag{display:inline-block;font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:10px;
     background:#e2e8f0;color:#475569;margin-left:4px;vertical-align:1px;}
   .tag.ohd{background:#dbeafe;color:#1e40af;}
@@ -334,6 +340,11 @@
         <li><b>Possible</b> &mdash; works, but check the note.</li>
         <li><b>Has conflicts</b> &mdash; would double-book the doctor or break a hard rule.</li>
       </ul>
+      <p>If the doctor you want is not on the list, press <b>+ Add a new doctor</b> at the bottom of
+        the list (it also appears when a search finds nobody). Fill in the short form &mdash; the status,
+        pool and OHD boxes are already set to suit that slot &mdash; then press <b>Add &amp; assign</b> to
+        add them and put them straight into the cell, or <b>Add only</b> to add them and carry on.
+        Either way the doctor is saved to the <b>Doctors</b> tab, so there is no need to switch tabs.</p>
       <h3>3. Open or close a slot</h3>
       <p>Striped grey cells are closed. Most sites open and close on a sensible default schedule,
         but you can change any slot for the week you are on: click a closed cell and press
@@ -383,6 +394,22 @@
         <button class="btn grey" id="mSaveRemark" style="white-space:nowrap">Save note</button>
       </div>
       <input class="srch" id="mSearch" placeholder="Search doctor name...">
+      <div id="mAddBox" style="display:none">
+        <div class="grp" style="margin:0 0 7px">Add a new doctor</div>
+        <div class="formgrid" style="grid-template-columns:repeat(auto-fit,minmax(105px,1fr));gap:9px">
+          <div class="field"><label>Name</label><input type="text" id="maName" placeholder="e.g. Dr Tan"></div>
+          <div class="field"><label>Status</label><select id="maStatus"><option>Permanent</option><option>Locum</option></select></div>
+          <div class="field"><label>Pool</label><select id="maPool"><option>GP</option><option>Industrial</option></select></div>
+          <div class="field"><label>OHD</label><select id="maOhd"><option>No</option><option>Yes</option></select></div>
+        </div>
+        <div id="maHint" style="margin-top:8px;font-size:11.5px;color:var(--muted)"></div>
+        <div style="display:flex;gap:7px;margin-top:9px;flex-wrap:wrap">
+          <button class="btn primary" id="maAddAssign">Add &amp; assign</button>
+          <button class="btn grey" id="maAddOnly">Add only</button>
+          <div style="flex:1"></div>
+          <button class="btn grey" id="maCancel">Cancel</button>
+        </div>
+      </div>
       <div id="mList"></div>
     </div>
     <div class="mfoot">
@@ -601,6 +628,8 @@ function weekDates(){
 function timeToMin(t){const[h,m]=t.split(":").map(Number);return h*60+m;}
 
 function docByName(n){return state.doctors.find(d=>d.name===n);}
+function docByNameCI(n){const q=(n||"").trim().toLowerCase();
+  return q?state.doctors.find(d=>d.name.toLowerCase()===q):undefined;}
 function permanentList(){return state.doctors.filter(d=>d.status==="Permanent");}
 function leaveFor(name,dateISO){
   return (state.leave||[]).find(l=>l.doctor===name&&dateISO>=l.from&&dateISO<=l.to)||null;
@@ -1047,6 +1076,8 @@ function openAssign(slotId,di){
     "  ·  "+slot.hours+"h";
   document.getElementById("mSearch").value="";
   document.getElementById("mRemark").value=getRemark(slotId,di)||"";
+  document.getElementById("mAddBox").style.display="none";
+  document.getElementById("maName").value="";
   refreshModal();
   document.getElementById("modalBg").classList.add("show");
   document.getElementById("mSearch").focus();
@@ -1105,9 +1136,16 @@ function drawSuggestions(filter){
         "<span class='ic'>"+ic+"</span></div>";
     });
   });
-  if(!h) h="<div class='small' style='padding:14px'>No doctor matches that search.</div>";
+  if(!h) h="<div class='small' style='padding:14px 2px 8px'>No doctor matches that search.</div>";
+  if(document.getElementById("mAddBox").style.display==="none"){
+    const typed=(filter||"").trim();
+    h+="<button class='addnew' id='mAddNew'>+ "+
+       (typed?'Add "'+esc(typed)+'" as a new doctor':"Add a new doctor")+"</button>";
+  }
   const ml=document.getElementById("mList");
   ml.innerHTML=h;
+  const addBtn=document.getElementById("mAddNew");
+  if(addBtn) addBtn.onclick=()=>openInlineAdd(document.getElementById("mSearch").value);
   ml.querySelectorAll(".sg").forEach(row=>{
     row.onclick=()=>{
       setOpen(modalCtx.slot.id,modalCtx.di,true);
@@ -1117,7 +1155,59 @@ function drawSuggestions(filter){
     };
   });
 }
-function closeModal(){document.getElementById("modalBg").classList.remove("show");}
+function closeModal(){
+  closeInlineAdd();
+  document.getElementById("modalBg").classList.remove("show");
+}
+function openInlineAdd(prefill){
+  if(!modalCtx) return;
+  const s=modalCtx.slot;
+  document.getElementById("maName").value=(prefill||"").trim();
+  document.getElementById("maStatus").value=s.locumOnly?"Locum":"Permanent";
+  document.getElementById("maPool").value=s.pool||"GP";
+  document.getElementById("maOhd").value=s.ohdReq?"Yes":"No";
+  const bits=[];
+  if(s.pool) bits.push(s.pool+" pool");
+  if(s.ohdReq) bits.push("OHD certified");
+  if(s.locumOnly) bits.push("locum");
+  document.getElementById("maHint").textContent=
+    bits.length?"Set to suit this slot ("+bits.join(", ")+"). Change anything that is wrong.":"";
+  document.getElementById("mAddBox").style.display="";
+  drawSuggestions(document.getElementById("mSearch").value);
+  const nm=document.getElementById("maName");
+  nm.focus();nm.select();
+}
+function closeInlineAdd(){
+  const box=document.getElementById("mAddBox");
+  if(box.style.display==="none") return;
+  box.style.display="none";
+  document.getElementById("maName").value="";
+  if(modalCtx) drawSuggestions(document.getElementById("mSearch").value);
+}
+function commitInlineAdd(assign){
+  if(!modalCtx) return;
+  const name=document.getElementById("maName").value.trim();
+  const nm=document.getElementById("maName");
+  if(!name){alert("Enter a doctor name.");nm.focus();return;}
+  const dup=docByNameCI(name);
+  if(dup){alert('A doctor called "'+dup.name+'" already exists.');nm.focus();nm.select();return;}
+  state.doctors.push({name:name,
+    status:document.getElementById("maStatus").value,
+    pool:document.getElementById("maPool").value,
+    ohd:document.getElementById("maOhd").value==="Yes"});
+  if(assign){
+    setOpen(modalCtx.slot.id,modalCtx.di,true);
+    setCell(modalCtx.slot.id,modalCtx.di,name);
+    setRemark(modalCtx.slot.id,modalCtx.di,document.getElementById("mRemark").value);
+    closeModal();save();render();
+    return;
+  }
+  document.getElementById("mAddBox").style.display="none";
+  nm.value="";
+  save();render();
+  document.getElementById("mSearch").value=name;
+  refreshModal();
+}
 
 function renderBookingForm(){
   const dsel=document.getElementById("bkDoc");
@@ -1266,7 +1356,8 @@ function renderDoctors(){
 function addDoctor(){
   const name=document.getElementById("dcName").value.trim();
   if(!name){alert("Enter a doctor name.");return;}
-  if(docByName(name)){alert("A doctor with that name already exists.");return;}
+  const dup=docByNameCI(name);
+  if(dup){alert('A doctor called "'+dup.name+'" already exists.');return;}
   state.doctors.push({name:name,
     status:document.getElementById("dcStatus").value,
     pool:document.getElementById("dcPool").value,
@@ -1787,6 +1878,10 @@ function init(){
     }
   };
   document.getElementById("mSearch").oninput=e=>drawSuggestions(e.target.value);
+  document.getElementById("maAddAssign").onclick=()=>commitInlineAdd(true);
+  document.getElementById("maAddOnly").onclick=()=>commitInlineAdd(false);
+  document.getElementById("maCancel").onclick=closeInlineAdd;
+  document.getElementById("maName").onkeydown=e=>{if(e.key==="Enter")commitInlineAdd(true);};
   document.getElementById("bkAdd").onclick=addBooking;
   document.getElementById("bkNewPlace").onclick=e=>{
     e.preventDefault();
