@@ -121,6 +121,9 @@
   .sg.ok{border-left-color:var(--ok);} .sg.ok .ic{color:var(--ok);}
   .sg.warn{border-left-color:var(--warn);} .sg.warn .ic{color:var(--warn);}
   .sg.err{border-left-color:var(--err);} .sg.err .ic{color:var(--err);}
+  .sg.lreq{border-left-color:var(--warn);background:#fffbeb;}
+  .sg.lreq:hover{background:#fef3c7;}
+  .sg.lreq .ic{color:var(--warn);}
   .addnew{display:block;width:100%;padding:9px;margin-top:4px;background:#f8fafc;
     border:1px dashed var(--line);border-radius:9px;color:var(--teal-d);
     font-weight:700;font-size:12.5px;text-align:center;}
@@ -345,6 +348,11 @@
         pool and OHD boxes are already set to suit that slot &mdash; then press <b>Add &amp; assign</b> to
         add them and put them straight into the cell, or <b>Add only</b> to add them and carry on.
         Either way the doctor is saved to the <b>Doctors</b> tab, so there is no need to switch tabs.</p>
+      <p>If you know a slot needs a locum but have not found one yet, pick <b>Locum required</b> at
+        the top of the same list. The slot is marked, and it stays on the checks list underneath the
+        grid as <b>still looking for a locum</b> until you put a real name in, so nothing is
+        forgotten. A counter above the grid shows how many slots are still waiting. A slot marked
+        this way counts towards nobody's hours and never clashes with anything.</p>
       <h3>3. Open or close a slot</h3>
       <p>Striped grey cells are closed. Most sites open and close on a sensible default schedule,
         but you can change any slot for the week you are on: click a closed cell and press
@@ -466,6 +474,7 @@ const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","
 const PALETTE = ["#ffd7a8","#fdf0a0","#c3f3c0","#a6e8ef","#aec9ff","#c9bdff","#f6c8ef",
                  "#ffb3b3","#bdecc9","#f3d4a0","#d4c4f0","#9fe0d8","#f0b9c8","#bcd6f5"];
 const LOCUM_COLOR = "#e9eef2";
+const LOCUM_WANTED = "Locum required";
 const STORE_KEY = "doctorRosterMaker_v1";
 const SEED_VERSION = 7;
 
@@ -639,7 +648,10 @@ function holidayFor(facility,dateISO){
   return (state.holidays||[]).find(h=>h.date===dateISO&&
     (h.clinics&&h.clinics.length?h.clinics.indexOf(facility)>=0:true))||null;
 }
-function isPlaceholder(name){return /^locum$/i.test(String(name||"").trim());}
+// A placeholder is a slot marked as "a locum will cover this" rather than a real
+// person. It never counts towards anyone's hours and never clashes with anything.
+// "Locum" is the older wording and still works; new cells are written as LOCUM_WANTED.
+function isPlaceholder(name){return /^locum(\s+(required|needed))?$/i.test(String(name||"").trim());}
 function colorFor(name){
   if(isPlaceholder(name)) return LOCUM_COLOR;
   const d=docByName(name);
@@ -727,7 +739,6 @@ function validateAll(){
     const a=wk[s.id];if(!a) return;
     Object.keys(a).forEach(diStr=>{
       const di=+diStr,name=a[diStr];if(!name) return;
-      if(isPlaceholder(name)) return;
       const key=s.id+"__"+di;
       const date=dates[di].iso;
       const doc=docByName(name);
@@ -737,6 +748,9 @@ function validateAll(){
         cellIssues[key].msgs.push(msg);
         summary.push({di,sev,text:DOW_S[di]+" · "+s.facility+" "+s.shift+" · "+name+" — "+msg});
       };
+      // Marked as needing a locum: no doctor checks apply, but keep it on the
+      // list so it is chased up until a real name goes in.
+      if(isPlaceholder(name)){addIssue("warn","still looking for a locum");return;}
       const hol=holidayFor(s.facility,date);
       if(!isOpen(s.id,di)&&!hol) addIssue("err","this slot is closed — open it or clear the doctor");
       if(!doc){addIssue("err","\""+name+"\" is not in the doctor list");return;}
@@ -1045,7 +1059,18 @@ function renderLegend(){
     h+="<span class='lchip'><span class='sw' style='background:"+colorFor(d.name)+"'></span>"+esc(d.name)+"</span>";
   });
   h+="<span class='lchip'><span class='sw' style='background:"+LOCUM_COLOR+"'></span>Locum</span>";
+  const lw=locumWantedCount();
+  if(lw) h+="<span class='lchip' style='background:#fffbeb;border-color:#fcd34d;color:#92400e;font-weight:700'>"+
+    "⚑ "+lw+" slot"+(lw===1?"":"s")+" still need"+(lw===1?"s":"")+" a locum</span>";
   el.innerHTML=h;
+}
+function locumWantedCount(){
+  const wk=curWeek();let n=0;
+  SLOTS.forEach(s=>{
+    const a=wk[s.id];if(!a) return;
+    Object.keys(a).forEach(di=>{if(isPlaceholder(a[di])) n++;});
+  });
+  return n;
 }
 function renderVSum(){
   const el=document.getElementById("vsum");
@@ -1137,8 +1162,17 @@ function drawSuggestions(filter){
     });
   });
   if(!h) h="<div class='small' style='padding:14px 2px 8px'>No doctor matches that search.</div>";
-  if(document.getElementById("mAddBox").style.display==="none"){
-    const typed=(filter||"").trim();
+  const typed=(filter||"").trim();
+  const adding=document.getElementById("mAddBox").style.display!=="none";
+  // "Locum required" sits above the doctors — it is a choice about the slot, not a person.
+  if(!adding&&(!typed||LOCUM_WANTED.toLowerCase().indexOf(typed.toLowerCase())>=0)){
+    h="<div class='sg lreq'>"+
+      "<span class='sw' style='width:15px;height:15px;border-radius:4px;display:inline-block;background:"+LOCUM_COLOR+"'></span>"+
+      "<div><div class='nm'>"+esc(LOCUM_WANTED)+(isPlaceholder(cur)?" <span class='tag'>current</span>":"")+"</div>"+
+      "<div class='rsn' style='color:#b45309'>flag this slot as needing a locum — it stays on the checks list until a name goes in</div></div>"+
+      "<span class='ic'>⚑</span></div>"+h;
+  }
+  if(!adding){
     h+="<button class='addnew' id='mAddNew'>+ "+
        (typed?'Add "'+esc(typed)+'" as a new doctor':"Add a new doctor")+"</button>";
   }
@@ -1146,7 +1180,14 @@ function drawSuggestions(filter){
   ml.innerHTML=h;
   const addBtn=document.getElementById("mAddNew");
   if(addBtn) addBtn.onclick=()=>openInlineAdd(document.getElementById("mSearch").value);
-  ml.querySelectorAll(".sg").forEach(row=>{
+  const lreq=ml.querySelector(".sg.lreq");
+  if(lreq) lreq.onclick=()=>{
+    setOpen(modalCtx.slot.id,modalCtx.di,true);
+    setCell(modalCtx.slot.id,modalCtx.di,LOCUM_WANTED);
+    setRemark(modalCtx.slot.id,modalCtx.di,document.getElementById("mRemark").value);
+    closeModal();save();render();
+  };
+  ml.querySelectorAll(".sg[data-name]").forEach(row=>{
     row.onclick=()=>{
       setOpen(modalCtx.slot.id,modalCtx.di,true);
       setCell(modalCtx.slot.id,modalCtx.di,row.dataset.name);
