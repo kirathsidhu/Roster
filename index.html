@@ -11,7 +11,9 @@
     --bg:#f4f6f8; --ink:#1f2a37; --muted:#64748b; --line:#dce3ea;
     --teal:#0f766e; --teal-d:#0b5a54; --card:#ffffff;
     --err:#dc2626; --err-bg:#fee2e2; --warn:#b45309; --warn-bg:#fef3c7;
-    --ok:#15803d; --ok-bg:#dcfce7; --closed:#eceff2;
+    --ok:#15803d; --ok-bg:#dcfce7;
+    /* closed-slot stripes — set from state.closedColor by applyClosedColour() */
+    --closed:#eceff2; --closed-2:#e4e8ec; --closed-ink:#aab4bd;
   }
   *{box-sizing:border-box;margin:0;padding:0;}
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
@@ -68,8 +70,9 @@
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   td.cell.empty{color:#cbd5e1;font-size:14px;}
   td.cell.empty:hover{color:var(--teal);}
-  td.closed{background:repeating-linear-gradient(45deg,#eceff2,#eceff2 6px,#e4e8ec 6px,#e4e8ec 12px);
-    cursor:pointer;color:#aab4bd;font-size:10px;text-align:center;}
+  td.closed{background:repeating-linear-gradient(45deg,var(--closed),var(--closed) 6px,
+    var(--closed-2) 6px,var(--closed-2) 12px);
+    cursor:pointer;color:var(--closed-ink);font-size:10px;text-align:center;}
   td.closed:hover{outline:2px solid var(--teal);outline-offset:-2px;}
   td.phcell{background:repeating-linear-gradient(45deg,#fef3c7,#fef3c7 6px,#fbe6a8 6px,#fbe6a8 12px);
     cursor:pointer;color:#92660a;font-size:10px;font-weight:800;text-align:center;}
@@ -201,6 +204,12 @@
       <button class="btn grey" id="btnCopyWeek">Copy last week into this week</button>
       <button class="btn grey" id="btnClearWeek">Clear this week</button>
       <span class="small" id="weekState"></span>
+      <span style="display:flex;align-items:center;gap:6px;margin-left:auto">
+        <label class="small" for="closedColour" style="cursor:pointer;white-space:nowrap">Closed slot colour</label>
+        <input type="color" id="closedColour" title="Colour of the striped closed slots"
+          style="width:34px;height:26px;padding:0;border:1px solid #cbd5e1;border-radius:6px;cursor:pointer;background:#fff">
+        <button class="btn grey" id="closedColourReset" style="padding:6px 10px;font-size:11.5px">Reset</button>
+      </span>
     </div>
     <div class="gridwrap"><table class="roster" id="rosterTable"></table></div>
     <div class="legend" id="legend"></div>
@@ -360,6 +369,11 @@
         but you can change any slot for the week you are on: click a closed cell and press
         <b>Open this slot</b>, or click an open cell and press <b>Close this slot</b>.
         Closing a slot also clears any doctor in it. These changes only affect the current week.</p>
+      <p>Do not like the grey? Use <b>Closed slot colour</b> above the grid to pick any colour for
+        the striped closed cells &mdash; the stripes and the word "closed" adjust themselves to stay
+        readable, whether you pick something pale or dark. <b>Reset</b> puts the original grey back.
+        The colour is part of the roster, so everyone sharing it sees the same thing, and it carries
+        through to the exported PDF and PNG.</p>
       <h3>4. Watch the warnings</h3>
       <p>Red and amber cells are flagged automatically. The list under the grid explains every one.
         The tool checks double-bookings, travel time between areas, OHD-only sites, locum-only sites,
@@ -479,6 +493,7 @@ const PALETTE = ["#ffd7a8","#fdf0a0","#c3f3c0","#a6e8ef","#aec9ff","#c9bdff","#f
                  "#ffb3b3","#bdecc9","#f3d4a0","#d4c4f0","#9fe0d8","#f0b9c8","#bcd6f5"];
 const LOCUM_COLOR = "#e9eef2";
 const LOCUM_WANTED = "Locum required";
+const CLOSED_DEFAULT = "#eceff2";
 const STORE_KEY = "doctorRosterMaker_v1";
 const SEED_VERSION = 7;
 
@@ -487,7 +502,7 @@ const SEED_VERSION = 7;
 // URL between the quotes below. Leave it blank to keep the tool local-only
 // (saved only in this browser, exactly as before).
 const SYNC_URL = "https://roster-store.kirathsidhu-stitch.workers.dev";   // your Cloudflare Worker
-const SYNC_FIELDS = ["weeks","remarks","cellState","doctors","bookings","leave","holidays","slots","places","seedVersion"];
+const SYNC_FIELDS = ["weeks","remarks","cellState","doctors","bookings","leave","holidays","slots","places","seedVersion","closedColor"];
 // ==========================================================================
 
 let state = {
@@ -502,7 +517,8 @@ let state = {
   slots: JSON.parse(JSON.stringify(DATA.slots)),
   leave: [],
   holidays: JSON.parse(JSON.stringify(SEED_HOLIDAYS)),
-  seedVersion: SEED_VERSION
+  seedVersion: SEED_VERSION,
+  closedColor: CLOSED_DEFAULT
 };
 let SLOTS=[];
 let SLOT_BY_ID={};
@@ -545,6 +561,7 @@ function load(){
       state.leave=s.leave||[];
       state.holidays=s.holidays||[];
       state.seedVersion=s.seedVersion||0;
+      state.closedColor=s.closedColor||CLOSED_DEFAULT;
     }
   }catch(e){}
   rebuildAfterLoad();
@@ -655,6 +672,40 @@ function holidayFor(facility,dateISO){
 // A placeholder is a slot marked as "a locum will cover this" rather than a real
 // person. It never counts towards anyone's hours and never clashes with anything.
 // "Locum" is the older wording and still works; new cells are written as LOCUM_WANTED.
+// ---- closed-slot colour ----
+function hexToRgb(h){
+  h=String(h||"").trim().replace(/^#/,"");
+  if(h.length===3) h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+  if(!/^[0-9a-fA-F]{6}$/.test(h)) return null;
+  return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)];
+}
+function rgbToHex(a){
+  return "#"+a.map(function(v){
+    v=Math.max(0,Math.min(255,Math.round(v)));
+    return (v<16?"0":"")+v.toString(16);
+  }).join("");
+}
+// perceived brightness, so pale and dark picks are both handled sensibly
+function relLum(c){
+  const f=v=>{v/=255;return v<=0.03928?v/12.92:Math.pow((v+0.055)/1.055,2.4);};
+  return 0.2126*f(c[0])+0.7152*f(c[1])+0.0722*f(c[2]);
+}
+function applyClosedColour(){
+  const rgb=hexToRgb(state.closedColor)||hexToRgb(CLOSED_DEFAULT);
+  const hex=rgbToHex(rgb), lum=relLum(rgb);
+  // Darken a light colour for the second stripe, lighten a dark one, so the
+  // stripes stay visible whatever is picked. Same idea for the "closed" label.
+  // The light-side step matches the original hand-picked grey pair, so the
+  // default look is unchanged from before this was adjustable.
+  const alt=rgbToHex(rgb.map(v=>v+(lum>0.5?-8:26)));
+  const ink=lum>0.55?"#aab4bd":"#f8fafc";
+  const rs=document.documentElement.style;
+  rs.setProperty("--closed",hex);
+  rs.setProperty("--closed-2",alt);
+  rs.setProperty("--closed-ink",ink);
+  const inp=document.getElementById("closedColour");
+  if(inp&&document.activeElement!==inp&&inp.value!==hex) inp.value=hex;
+}
 function isPlaceholder(name){return /^locum(\s+(required|needed))?$/i.test(String(name||"").trim());}
 function colorFor(name){
   if(isPlaceholder(name)) return LOCUM_COLOR;
@@ -883,6 +934,7 @@ function buildSuggestions(slot,di,date){
 }
 
 function render(){
+  applyClosedColour();
   validateAll();
   renderHeader();renderRoster();renderBookingStrip();renderExtraStrips();renderLegend();
   renderVSum();renderBookings();renderDoctors();renderHours();
@@ -1999,6 +2051,17 @@ function init(){
   document.getElementById("impFile").onchange=e=>{if(e.target.files[0])importJson(e.target.files[0]);};
   document.getElementById("btnCopyWeek").onclick=copyLastWeek;
   document.getElementById("btnClearWeek").onclick=clearWeek;
+  const ccInput=document.getElementById("closedColour");
+  ccInput.value=state.closedColor||CLOSED_DEFAULT;
+  // oninput previews while the picker is being dragged; onchange commits and saves,
+  // so a whole drag is one save rather than dozens.
+  ccInput.oninput=e=>{state.closedColor=e.target.value;applyClosedColour();};
+  ccInput.onchange=e=>{state.closedColor=e.target.value;applyClosedColour();save();};
+  document.getElementById("closedColourReset").onclick=()=>{
+    state.closedColor=CLOSED_DEFAULT;
+    ccInput.value=CLOSED_DEFAULT;
+    applyClosedColour();save();
+  };
   render();
   try{ Sync.init(); }catch(e){ console.error("sync init",e); }
 }
