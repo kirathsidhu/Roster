@@ -780,6 +780,14 @@ function applyClosedColour(){
   const inp=document.getElementById("closedColour");
   if(inp&&document.activeElement!==inp&&inp.value!==hex) inp.value=hex;
 }
+// The closed-slot colour currently in force, for the PNG/PDF export. On screen a
+// closed slot is diagonal stripes drawn with repeating-linear-gradient, which
+// html2canvas cannot draw at all — closed slots used to come out blank white
+// whatever colour was picked. The export fills them as solid blocks instead.
+function closedExportColour(){
+  const v=(getComputedStyle(document.documentElement).getPropertyValue("--closed")||"").trim();
+  return v||CLOSED_DEFAULT;
+}
 function isPlaceholder(name){return /^locum(\s+(required|needed))?$/i.test(String(name||"").trim());}
 function colorFor(name){
   if(isPlaceholder(name)) return LOCUM_COLOR;
@@ -1831,7 +1839,16 @@ function exportImage(kind){
   const tbl=document.getElementById("rosterTable").cloneNode(true);
   tbl.querySelectorAll(".flag").forEach(f=>f.remove());
   tbl.querySelectorAll("td.cell.empty").forEach(c=>{c.textContent="";});
-  tbl.querySelectorAll("td.closed").forEach(c=>{c.textContent="";});
+  // Closed slots export as solid blocks of the chosen colour. The screen keeps its
+  // stripes; only this clone changes. backgroundImage is cleared explicitly rather
+  // than relying on html2canvas failing to draw the gradient, so the block is what
+  // gets painted in every renderer rather than only in the one that gives up.
+  const closedFill=closedExportColour();
+  tbl.querySelectorAll("td.closed").forEach(c=>{
+    c.textContent="";
+    c.style.backgroundImage="none";
+    c.style.backgroundColor=closedFill;
+  });
   tbl.querySelectorAll("th,td").forEach(c=>{c.style.position="static";});
   const wrap=document.createElement("div");
   wrap.id="expRoot";
