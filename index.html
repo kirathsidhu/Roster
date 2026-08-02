@@ -1987,7 +1987,18 @@ const Sync = {
   setStatus(t,c){ const e=this.el(); if(e){ e.textContent=t; e.style.color=c||""; } },
   headers(){ return {"Content-Type":"application/json","X-Roster-Code":this.code||""}; },
   payload(){ const o={}; SYNC_FIELDS.forEach(function(f){ o[f]=state[f]; }); return JSON.parse(JSON.stringify(o)); },
-  applyPayload(p){ if(!p) return; SYNC_FIELDS.forEach(function(f){ if(p[f]!==undefined) state[f]=p[f]; }); rebuildSlots(); },
+  applyPayload(p){
+    if(!p) return;
+    SYNC_FIELDS.forEach(function(f){ if(p[f]!==undefined) state[f]=p[f]; });
+    // The shared copy is very often older than the build reading it, and seedVersion
+    // is itself one of the synced fields — so without this line, pulling the team's
+    // copy silently undoes the seed updates that load() had just applied AND winds
+    // the version counter back, so they never get a second chance to run. Re-running
+    // them against whatever arrived is safe: applySeedUpdates() returns immediately
+    // once the state is already at this version.
+    applySeedUpdates();
+    rebuildSlots();
+  },
   saveLocal(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){} },
   wireClick(){ const e=this.el(); if(e&&!e.__wired){ e.__wired=true; e.style.cursor="pointer"; e.title="Click to re-enter the access code / reconnect"; const self=this; e.onclick=function(){ self.promptCode(true); if(self.code) self.connect(); }; } },
   promptCode(force){ const c=window.prompt("Enter the roster access code (shared with your team):", force?"":(this.code||"")); if(c&&c.trim()){ this.code=c.trim(); localStorage.setItem("rosterAccessCode", this.code); } },
@@ -2013,10 +2024,21 @@ const Sync = {
         const ok=await this.push(true);
         if(ok){ this.connected=true; this.setStatus("Synced ✓","#15803d"); this.startPoll(); }
       }else{
-        this.version=data.version||0; this.applyPayload(data.state);
-        this.base=JSON.parse(JSON.stringify(data.state));
+        this.version=data.version||0;
+        // Take the baseline BEFORE applying: applyPayload assigns the server's
+        // objects into state by reference and then upgrades them in place, so
+        // cloning afterwards would record our own upgrade as the server's copy and
+        // give the three-way merge a baseline that never existed.
+        const pristine=JSON.parse(JSON.stringify(data.state));
+        const wasBehind=(pristine.seedVersion||0) < SEED_VERSION;
+        this.applyPayload(data.state);
+        this.base=pristine;
         this.connected=true; this.saveLocal(); render();
         this.setStatus("Synced ✓","#15803d"); this.startPoll();
+        // The copy on the server was behind this build and applyPayload has just
+        // brought it up to date. Send it straight back, otherwise every person
+        // upgrades their own copy over and over and the shared one never moves.
+        if(wasBehind) this.push();
       }
     }catch(e){
       this.connected=false; this.setStatus("Offline — retrying","#b45309");
