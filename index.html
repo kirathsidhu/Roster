@@ -407,6 +407,11 @@
       <h3>6. Export</h3>
       <p>Press <b>Export PDF</b> or <b>Export PNG</b> at the top to save the finished roster as a
         compact, phone-friendly image &mdash; no need to screenshot.</p>
+      <p>On a phone, <b>Export PNG</b> shows you the finished image with a <b>Save image</b> button:
+        that button offers your phone's usual share sheet, so you can drop the roster straight into
+        Photos or send it to someone in one step. If the button does nothing &mdash; some browsers
+        built into apps like WhatsApp block saving &mdash; press and hold the picture and choose
+        <b>Save image</b> instead.</p>
       <h3>7. Add, edit or remove a clinic</h3>
       <p>On the <b>Clinics</b> tab you can add a new clinic or site: give it a name, an area,
         how many shift slots it has, and the timing of each slot. Every clinic &mdash; built-in
@@ -479,6 +484,27 @@
     </div>
     <div class="mfoot"><div style="flex:1"></div>
       <button class="btn grey" id="dataCancel">Close</button></div>
+  </div>
+</div>
+<div class="modal-bg" id="imgBg">
+  <div class="modal" style="width:460px">
+    <div class="mh"><div class="t">Roster image ready</div>
+      <div class="s">Save it to this phone, or send it straight to someone.</div></div>
+    <div class="mbody">
+      <button class="btn primary" id="imgSave" style="width:100%;margin-bottom:10px">Save image</button>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:12px">If that does nothing, press and hold the
+        roster below and choose <b>Save image</b>. That works in every browser, including the ones built into
+        WhatsApp and Instagram.</p>
+      <!-- The preview is capped so the Save button is never pushed off the screen: a
+           full week is several times taller than a phone, and a button you have to
+           go looking for is a button that does not work. A long press still saves
+           the full-size image, not this shrunken view. -->
+      <img id="imgPrev" alt="The roster for this week"
+        style="width:100%;max-height:38vh;object-fit:contain;object-position:top;
+               border:1px solid var(--line);border-radius:9px;display:block;background:#fff">
+    </div>
+    <div class="mfoot"><div style="flex:1"></div>
+      <button class="btn grey" id="imgClose">Close</button></div>
   </div>
 </div>
 <div class="modal-bg" id="clinicBg">
@@ -1832,7 +1858,95 @@ function renderHours(){
   });
 }
 
+// ==== HANDING A FINISHED FILE TO THE BROWSER ==============================
+// A phone is not a desktop, and the plain "build an <a download> and click it"
+// trick that used to live here fails on phones in three separate ways — which
+// is why the same roster could export fine on one phone and do nothing at all
+// on another:
+//   * Safari on iOS never honours a download whose href is a data: URL, and a
+//     full roster makes one tens of megabytes long. That hit the PNG only: the
+//     PDF goes out through jsPDF, which already saves a blob;
+//   * an <a> that was never put into the document is a no-op when clicked in
+//     Firefox for Android and in several in-app browsers;
+//   * the browsers built into WhatsApp, Instagram and Teams refuse downloads
+//     outright, however the link is built — and a link to the roster is very
+//     often opened from inside a chat.
+// So: always a blob, always in the document, and on a handheld hand the image
+// to the share sheet or to a long press instead of guessing.
+function isHandheld(){
+  return !!(window.matchMedia&&window.matchMedia("(pointer:coarse)").matches);
+}
+function downloadBlobUrl(url,filename){
+  const a=document.createElement("a");
+  a.href=url;a.download=filename;a.style.display="none";
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(()=>{if(a.parentNode)a.parentNode.removeChild(a);},0);
+}
+function saveBlob(blob,filename){
+  const url=URL.createObjectURL(blob);
+  downloadBlobUrl(url,filename);
+  setTimeout(()=>URL.revokeObjectURL(url),60000);
+}
+// The image is shown rather than pushed at the browser, because showing it is
+// the only route that survives every phone browser. The share sheet is offered
+// on top where it exists: it is what puts the roster into Photos on an iPhone.
+function offerImage(blob,filename){
+  const url=URL.createObjectURL(blob);
+  const bg=document.getElementById("imgBg");
+  document.getElementById("imgPrev").src=url;
+  const close=()=>{bg.classList.remove("show");URL.revokeObjectURL(url);};
+  document.getElementById("imgClose").onclick=close;
+  bg.onclick=ev=>{if(ev.target.id==="imgBg")close();};
+  document.getElementById("imgSave").onclick=()=>{
+    // Saving sits on its own button on purpose. Drawing the roster takes long
+    // enough that the tap on "Export PNG" has stopped counting as a gesture by
+    // the time the image exists, and both the share sheet and Safari's download
+    // are refused without one. This tap is a fresh gesture.
+    let file=null;
+    try{ file=new File([blob],filename,{type:"image/png"}); }catch(e){}
+    if(file&&navigator.canShare&&navigator.canShare({files:[file]})){
+      navigator.share({files:[file],title:filename})
+        .catch(err=>{ if(!err||err.name!=="AbortError") downloadBlobUrl(url,filename); });
+    }else{
+      downloadBlobUrl(url,filename);
+    }
+  };
+  bg.classList.add("show");
+}
+// Safari on iOS will not allocate a canvas past a fixed pixel budget, and it
+// hands back a blank one instead of raising an error — so a phone with less
+// memory than the one it was tested on exported a white rectangle and no
+// warning. Stay inside a budget every device can manage, dropping the detail
+// only on the weeks that are big enough to need it.
+function exportScale(el){
+  const w=el.scrollWidth||el.offsetWidth||1,h=el.scrollHeight||el.offsetHeight||1;
+  const BUDGET=12000000;
+  return Math.max(1,Math.min(3,Math.sqrt(BUDGET/(w*h))));
+}
+function deliverPng(canvas,filename){
+  canvas.toBlob(blob=>{
+    if(!blob){
+      alert("This device could not turn the roster into an image. Try again with a browser tab or two closed, "+
+        "or export the PDF instead.");
+      return;
+    }
+    if(isHandheld()) offerImage(blob,filename); else saveBlob(blob,filename);
+  },"image/png");
+}
+
 function exportImage(kind){
+  // The export tools come from a CDN. When that request is blocked or is still
+  // in flight, calling them throws immediately rather than returning a promise,
+  // so the .catch() below never ran and the button looked completely dead.
+  if(typeof html2canvas!=="function"){
+    alert("The export tools have not finished loading. Check your internet connection, reload the page and try again.");
+    return;
+  }
+  if(kind!=="png"&&!(window.jspdf&&window.jspdf.jsPDF)){
+    alert("The PDF tools have not finished loading. Check your internet connection, reload the page and try again.");
+    return;
+  }
   const d=parseISO(state.weekStart),e=parseISO(addDays(state.weekStart,6));
   const title="Doctor Roster   "+d.getDate()+" "+MON[d.getMonth()]+
     " – "+e.getDate()+" "+MON[e.getMonth()]+" "+e.getFullYear();
@@ -1858,30 +1972,34 @@ function exportImage(kind){
   hd.textContent=title;
   wrap.appendChild(hd);wrap.appendChild(tbl);
   document.body.appendChild(wrap);
-  html2canvas(wrap,{scale:3,backgroundColor:"#ffffff"}).then(canvas=>{
-    document.body.removeChild(wrap);
+  const scale=exportScale(wrap);
+  const cleanUp=()=>{if(wrap.parentNode)wrap.parentNode.removeChild(wrap);};
+  html2canvas(wrap,{scale:scale,backgroundColor:"#ffffff"}).then(canvas=>{
+    cleanUp();
     const fn="roster_"+state.weekStart;
     if(kind==="png"){
-      const a=document.createElement("a");
-      a.download=fn+".png";a.href=canvas.toDataURL("image/png");a.click();
+      deliverPng(canvas,fn+".png");
     }else{
       const {jsPDF}=window.jspdf;
-      const w=canvas.width/3,ht=canvas.height/3;
+      // Divided by the scale actually used, not by a hard-coded 3, or a roster
+      // big enough to be drawn smaller comes out on an oversized page.
+      const w=canvas.width/scale,ht=canvas.height/scale;
       const pdf=new jsPDF({orientation:w>ht?"landscape":"portrait",unit:"pt",format:[w,ht]});
       pdf.addImage(canvas.toDataURL("image/jpeg",0.96),"JPEG",0,0,w,ht);
       pdf.save(fn+".pdf");
     }
   }).catch(err=>{
-    if(wrap.parentNode) document.body.removeChild(wrap);
-    alert("Export needs an internet connection the first time (to load the export tools). Please check your connection and try again.");
+    cleanUp();
+    alert("The roster could not be turned into an image. "+
+      ((err&&err.message)?"The browser said: "+err.message:"Please reload the page and try again."));
   });
 }
 
 function exportJson(){
   const blob=new Blob([JSON.stringify(state,null,1)],{type:"application/json"});
-  const a=document.createElement("a");
-  a.download="roster_backup_"+toISO(new Date())+".json";
-  a.href=URL.createObjectURL(blob);a.click();
+  // Through the same helper as the roster image: this used to click an <a> that
+  // was never in the document, which several phone browsers ignore outright.
+  saveBlob(blob,"roster_backup_"+toISO(new Date())+".json");
 }
 function importJson(file){
   const r=new FileReader();
